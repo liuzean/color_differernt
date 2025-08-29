@@ -1,0 +1,48 @@
+# Pre-commit configuration for Color Difference Analysis System
+# See https://pre-commit.com for more information
+#
+# NOTE: This is a simplified configuration for initial development.
+# Some advanced checks are disabled to allow for incremental adoption.
+
+repos:
+  # Basic file checks (auto-fixing hooks disabled to prevent conflicts with unstaged changes)
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-docstring-first
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: check-added-large-files
+      - id: debug-statements
+
+  # Modern Python linting (only using Black formatter for now)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.9
+    hooks:
+      - id: ruff-format
+        exclude: ^(tests/)
+
+  # Local cleanup script
+  - repo: local
+    hooks:
+      - id: cleanup-cache
+        name: Clean cache and temp files
+        entry: python scripts/cleanup.py --dry-run
+        language: system
+        stages: [manual]
+        pass_filenames: false
+        description: Remove cache and temporary files (dry-run for pre-commit)
+
+# Global configuration
+default_language_version:
+  python: python3.10
+
+ci:
+  autofix_commit_msg: |
+    [pre-commit] Auto-fixes from pre-commit hooks
+  autofix_prs: true
+  autoupdate_schedule: weekly

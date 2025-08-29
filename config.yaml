@@ -1,0 +1,54 @@
+alignment:
+  min_matches: 4
+  ransac_reproj_threshold: 5
+  refinement:
+    crossCheck: true
+    enabled: false
+    min_matches: 8
+    nfeatures: 3000
+    ransac_reproj_threshold: 3.0
+    ratio_threshold: 0.6
+block_detection:
+  area_threshold: 50
+  aspect_ratio_threshold: 0.3
+  box_expansion: 10
+  confidence_threshold: 0.5
+  min_square_size: 5
+  shrink_height: 30
+  shrink_width: 30
+blockwise:
+  block_size_h: 32
+  block_size_w: 32
+  enabled: true
+  use_mask: true
+color_difference:
+  mask_background: true
+  method: ciede2000
+  threshold: 3
+detector:
+  nfeatures: 2000
+  type: sift
+icc:
+  apply_conversion: false
+  cmyk_profile: JapanColor2001Coated.icc
+  conversion_direction: srgb_to_cmyk
+  enabled: false
+  rendering_intent: perceptual
+  save_converted: true
+  srgb_profile: sRGB IEC61966-21.icc
+matcher:
+  crossCheck: false
+  ratio_test: true
+  ratio_threshold: 0.7
+preprocessing:
+  clahe_clip_limit: 2.0
+  clahe_grid_size:
+  - 8
+  - 8
+  enhance_contrast: true
+  resize_max_dimension: 1500
+visualization:
+  compare_all_methods: true
+  generate_report: true
+  output_dir: alignment_results
+  save_intermediate: true

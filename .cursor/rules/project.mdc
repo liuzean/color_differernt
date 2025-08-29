@@ -1,0 +1,7 @@
+---
+description:
+globs: *.py
+alwaysApply: true
+---
+
+I am using python 3.10, uv as package manager. Always use uv to install dependencies, and you need to follow new type annotations(e.g., dict -> typing.Dict, Optional -> X | None). Always follow best practices, use proper version of the libraries, and double-check the plan feasibility.

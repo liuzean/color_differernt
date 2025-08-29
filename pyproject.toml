@@ -1,0 +1,187 @@
+[project]
+name = "color-difference"
+version = "0.2.3"
+description = "Color difference analysis system"
+readme = "readme.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "GDUT-SMTown", email = "gdut@example.com"}
+]
+keywords = ["color-difference", "image-processing", "computer-vision", "analysis"]
+
+dependencies = [
+    # Core computer vision and image processing
+    "opencv-contrib-python>=4.8.0,<5.0.0",
+    "numpy>=1.24.0,<3.0.0",
+    "pillow>=10.0.0",
+    "colour",
+    # Scientific computing and analysis
+    "scipy>=1.11.0",
+    "scikit-image>=0.21.0",
+    "scikit-learn>=1.3.0",
+    "matplotlib>=3.7.0",
+    # Web interface
+    "gradio>=5.0.0,<6.0.0",
+    "gradio-client>=1.10.0",
+    # Configuration and data handling
+    "pyyaml>=6.0.0",
+    "colorlog>=6.7.0",
+    # Security and networking
+    "cryptography>=41.0.0",
+    "urllib3>=2.0.0,<3.0.0",
+    "reportlab>=4.4.2",
+    "colour-science>=0.4.6",
+    "ultralytics>=8.3.163",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.7.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.4.0",
+    "bandit>=1.7.5",
+    "ruff>=0.1.9",
+    "commitizen>=3.13.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.2.0",
+    "mkdocstrings[python]>=0.22.0",
+]
+test = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.0",
+    "coverage[toml]>=7.3.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yuanweizhong/color-difference"
+Documentation = "https://github.com/yuanweizhong/color-difference/blob/main/readme.md"
+Repository = "https://github.com/yuanweizhong/color-difference"
+Issues = "https://github.com/yuanweizhong/color-difference/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["core", "interface", "visualization"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+# UV configuration
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.7.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.4.0",
+    "bandit>=1.7.5",
+    "ruff>=0.1.9",
+    "commitizen>=3.13.0",
+]
+
+# MyPy configuration
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "cv2.*",
+    "gradio.*",
+    "matplotlib.*",
+    "scipy.*",
+    "skimage.*",
+]
+ignore_missing_imports = true
+
+# Pytest configuration
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["core", "interface", "visualization"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+# Ruff configuration (modern replacement for flake8)
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+]
+
+[tool.ruff.mccabe]
+max-complexity = 10
