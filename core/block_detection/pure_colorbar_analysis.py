@@ -16,7 +16,7 @@ from ..color.ground_truth_checker import ground_truth_checker
 # 恢复颜色条检测的导入
 from .yolo_show import detect_colorbars_yolo, load_yolo_model
 # 导入新的YOLO色块检测器
-from .yolo_block_detection import detect_blocks_with_yolo, load_yolo_block_model
+from .yolo_block_detection import YOLOBlockDetector, filter_blocks_by_criteria
 
 
 def extract_pure_color_from_block(
@@ -221,11 +221,13 @@ def pure_colorbar_analysis_pipeline(
     model_path: str = None,
     # 新增：YOLO色块检测参数
     yolo_block_confidence: float = 0.5,
+    yolo_block_iou: float = 0.45,
     # 色块过滤参数
     block_area_threshold: int = 50,
+    block_aspect_ratio: float = 0.3,
+    min_square_size: int = 5,
     # 纯色分析参数
     purity_threshold: float = 0.8,
-    **kwargs,  # 接受并忽略任何其他参数
 ) -> dict:
     """
     完整的基于纯色的色板分析流水线。
@@ -242,7 +244,10 @@ def pure_colorbar_analysis_pipeline(
         box_expansion: YOLO框扩展像素
         model_path: YOLO颜色条模型路径
         yolo_block_confidence: YOLO色块检测置信度阈值
+        yolo_block_iou: YOLO色块检测IoU阈值
         block_area_threshold: 色板内块的最小面积
+        block_aspect_ratio: 块的最小长宽比
+        min_square_size: 检测块的最小宽度和高度（像素）
         purity_threshold: 颜色接受的最小纯度分数
 
     Returns:
@@ -284,10 +289,9 @@ def pure_colorbar_analysis_pipeline(
 
         # 步骤2：初始化YOLO色块检测器 (best.pt)
         print("Step 2: Initializing YOLO block detector (best.pt)...")
-        try:
-            block_model = load_yolo_block_model()
-        except (FileNotFoundError, RuntimeError) as e:
-            return {"error": str(e)}
+        block_detector = YOLOBlockDetector()
+        if not block_detector.model_loaded:
+            return {"error": "YOLO block detection model failed to load."}
 
         colorbar_results = []
 
@@ -297,16 +301,32 @@ def pure_colorbar_analysis_pipeline(
             colorbar_id = i + 1
             print(f"  Processing colorbar {colorbar_id}/{len(colorbar_segments)}...")
 
-            # 步骤2.1: 使用YOLO检测色块 (替换旧逻辑)
-            (
-                segmented_colorbar,
-                color_blocks,
-                block_count,
-            ) = detect_blocks_with_yolo(
+            # 步骤2.1: 使用YOLO检测色块 (替换传统算法)
+            detected_blocks = block_detector.detect_blocks(
                 segment,
-                block_model,
                 confidence_threshold=yolo_block_confidence,
+                iou_threshold=yolo_block_iou,
+            )
+
+            # 步骤2.2: 过滤色块
+            filtered_blocks_info = filter_blocks_by_criteria(
+                detected_blocks,
                 min_area=block_area_threshold,
+                min_aspect_ratio=block_aspect_ratio,
+                min_size=min_square_size,
+            )
+            
+            # 步骤2.3: 提取色块图像
+            color_blocks = []
+            for block_info in filtered_blocks_info:
+                x, y, w, h = block_info['bbox']
+                color_blocks.append(segment[y:y+h, x:x+w])
+
+            block_count = len(color_blocks)
+
+            # 步骤2.4: 可视化YOLO色块检测结果
+            segmented_colorbar = block_detector.visualize_detections(
+                segment, filtered_blocks_info
             )
 
             # 步骤3：每个块的纯色分析
@@ -406,10 +426,12 @@ def pure_colorbar_analysis_for_gradio(
     box_expansion: int = 10,
     # 新增YOLO色块检测参数
     yolo_block_confidence: float = 0.5,
+    yolo_block_iou: float = 0.45,
     # 色块过滤参数
     block_area_threshold: int = 50,
+    block_aspect_ratio: float = 0.3,
+    min_square_size: int = 5,
     purity_threshold: float = 0.8,
-    **kwargs,  # 接受并忽略任何其他参数
 ) -> tuple[Image.Image, list[dict], str, int]:
     """
     为Gradio界面优化的纯色色板分析流水线包装器。
@@ -428,7 +450,10 @@ def pure_colorbar_analysis_for_gradio(
         confidence_threshold=confidence_threshold,
         box_expansion=box_expansion,
         yolo_block_confidence=yolo_block_confidence,
+        yolo_block_iou=yolo_block_iou,
         block_area_threshold=block_area_threshold,
+        block_aspect_ratio=block_aspect_ratio,
+        min_square_size=min_square_size,
         purity_threshold=purity_threshold,
     )
 
