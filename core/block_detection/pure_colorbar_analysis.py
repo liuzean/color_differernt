@@ -1,3 +1,5 @@
+# core/block_detection/pure_colorbar_analysis.py
+
 """
 重新设计的基于纯色的色板分析流水线
 
@@ -16,7 +18,7 @@ from ..color.ground_truth_checker import ground_truth_checker
 # 恢复颜色条检测的导入
 from .yolo_show import detect_colorbars_yolo, load_yolo_model
 # 导入新的YOLO色块检测器
-from .yolo_block_detection import YOLOBlockDetector, filter_blocks_by_criteria
+from .yolo_block_detection import detect_blocks_with_yolo, load_yolo_block_model
 
 
 def extract_pure_color_from_block(
@@ -98,23 +100,15 @@ def extract_pure_color_from_block(
     return pure_color, purity_score
 
 
-def analyze_pure_color_block(
+# [新函数] 仅提取颜色特征，不进行匹配
+def _extract_block_color_features(
     color_block: np.ndarray,
     block_id: int = None,
     colorbar_id: int = None,
     purity_threshold: float = 0.8,
 ) -> dict:
     """
-    分析单个颜色块，专注于纯色提取和标准真值匹配。
-
-    Args:
-        color_block: 单个颜色块图像（BGR格式）
-        block_id: 该块的ID
-        colorbar_id: 父色板的ID
-        purity_threshold: 颜色接受的最小纯度分数
-
-    Returns:
-        包含纯色分析和标准真值比较的字典
+    Extracts color features from a single color block without performing ground truth matching.
     """
     if color_block.size == 0:
         return {"error": "Empty color block"}
@@ -127,9 +121,6 @@ def analyze_pure_color_block(
 
     pure_cmyk = rgb_to_cmyk_icc(pure_rgb)
 
-    # 查找最接近的标准真值颜色并计算Delta E
-    closest_gt_color, delta_e = ground_truth_checker.find_closest_color(pure_rgb)
-
     # 创建分析结果
     analysis = {
         "block_id": block_id,
@@ -138,23 +129,50 @@ def analyze_pure_color_block(
         "pure_color_cmyk": pure_cmyk,
         "purity_score": purity_score,
         "color_quality": _get_color_quality(purity_score),
-        "ground_truth_match": {
-            "closest_color": {
-                "id": closest_gt_color.id,
-                "name": closest_gt_color.name,
-                "cmyk": closest_gt_color.cmyk,
-                "rgb": closest_gt_color.rgb,
-            }
-            if closest_gt_color
-            else None,
-            "delta_e": delta_e,
-            "accuracy_level": ground_truth_checker._get_accuracy_level(delta_e),
-            "is_acceptable": delta_e < 3.0,  # Delta E < 3.0 为可接受
-            "is_excellent": delta_e < 1.0,   # Delta E < 1.0 为优秀
-        },
         "block_size": color_block.shape[:2],
     }
+    return analysis
 
+
+def analyze_pure_color_block(
+    color_block: np.ndarray,
+    block_id: int = None,
+    colorbar_id: int = None,
+    purity_threshold: float = 0.8,
+) -> dict:
+    """
+    [兼容性保留] Analyzes a single color block, focusing on pure color extraction and ground truth matching.
+
+    # WARNING: This function is deprecated. It performs a single-color match against the default
+    # ground truth card ('card_001') only. For multi-card matching, use the new pipeline.
+    """
+    # First, extract color features
+    analysis = _extract_block_color_features(
+        color_block, block_id, colorbar_id, purity_threshold
+    )
+    if "error" in analysis:
+        return analysis
+
+    # Legacy: find closest color from the default list
+    closest_gt_color, delta_e = ground_truth_checker.find_closest_color(
+        analysis["pure_color_rgb"]
+    )
+
+    # Create the ground_truth_match structure
+    analysis["ground_truth_match"] = {
+        "closest_color": {
+            "id": closest_gt_color.id,
+            "name": closest_gt_color.name,
+            "cmyk": closest_gt_color.cmyk,
+            "rgb": closest_gt_color.rgb,
+        }
+        if closest_gt_color
+        else None,
+        "delta_e": delta_e,
+        "accuracy_level": ground_truth_checker._get_accuracy_level(delta_e),
+        "is_acceptable": delta_e < 3.0,
+        "is_excellent": delta_e < 1.0,
+    }
     return analysis
 
 
@@ -169,47 +187,120 @@ def _get_color_quality(purity_score: float) -> str:
         质量等级字符串
     """
     if purity_score >= 0.9:
-        return "Excellent"    # 优秀
+        return "Excellent"
     elif purity_score >= 0.8:
-        return "Very Good"    # 很好
+        return "Very Good"
     elif purity_score >= 0.7:
-        return "Good"         # 好
+        return "Good"
     elif purity_score >= 0.6:
-        return "Fair"         # 一般
+        return "Fair"
     elif purity_score >= 0.5:
-        return "Poor"         # 差
+        return "Poor"
     else:
-        return "Very Poor"    # 很差
+        return "Very Poor"
+
+
+# 原函数名: analyze_colorbar_pure_colors
+def analyze_colorbar_with_best_card_match(
+    colorbar_blocks: list[np.ndarray],
+    colorbar_id: int = None,
+    purity_threshold: float = 0.8,
+) -> tuple[list[dict], str | None]:
+    """
+    [新流程] Analyzes multiple color blocks from a colorbar, finds the best matching
+    standard color card, and returns detailed comparisons.
+
+    Args:
+        colorbar_blocks: List of single color block images (BGR).
+        colorbar_id: ID of the parent colorbar.
+        purity_threshold: Minimum purity score for a color to be accepted.
+
+    Returns:
+        A tuple containing:
+        - A list of detailed analysis dictionaries for each block.
+        - The ID of the best matching standard card, or None.
+    """
+    if not colorbar_blocks:
+        return [], None
+
+    # Step 1: Extract color features from all blocks first
+    block_features = []
+    detected_rgb_colors = []
+    for i, block in enumerate(colorbar_blocks):
+        features = _extract_block_color_features(
+            block,
+            block_id=i + 1,
+            colorbar_id=colorbar_id,
+            purity_threshold=purity_threshold,
+        )
+        block_features.append(features)
+        if "error" not in features:
+            detected_rgb_colors.append(features["pure_color_rgb"])
+
+    if not detected_rgb_colors:
+        return block_features, None
+
+    # Step 2: Find the best matching card for the entire set of detected colors
+    card_match_result = ground_truth_checker.find_best_card_for_colorbar(
+        detected_rgb_colors
+    )
+
+    if not card_match_result:
+        # If no match found, return features without ground truth info
+        return block_features, None
+
+    best_card_id = card_match_result["best_card_id"]
+    match_results = card_match_result["results"]
+
+    # Step 3: Merge the matching results back into the block features
+    final_analyses = []
+    for i, features in enumerate(block_features):
+        if "error" in features:
+            final_analyses.append(features)
+            continue
+        
+        # Find the corresponding match result (assuming order is preserved)
+        if i < len(match_results):
+            match = match_results[i]
+            gt_color = match["closest_ground_truth"]
+            
+            features["ground_truth_match"] = {
+                "closest_color": {
+                    "id": gt_color.id,
+                    "name": gt_color.name,
+                    "cmyk": gt_color.cmyk,
+                    "rgb": gt_color.rgb,
+                },
+                "delta_e": match["delta_e"],
+                "accuracy_level": match["accuracy_level"],
+                "is_acceptable": match["delta_e"] < 3.0,
+                "is_excellent": match["delta_e"] < 1.0,
+            }
+        final_analyses.append(features)
+
+    return final_analyses, best_card_id
 
 
 def analyze_colorbar_pure_colors(
     colorbar_blocks: list[np.ndarray],
     colorbar_id: int = None,
-    purity_threshold: float = 0.8,  # 将纯度阈值传递到这里
+    purity_threshold: float = 0.8,
 ) -> list[dict]:
     """
-    分析色板中的多个颜色块，专注于纯色。
+    [兼容性保留] Analyzes multiple color blocks in a colorbar, focusing on pure colors.
 
-    Args:
-        colorbar_blocks: 单个颜色块图像列表（BGR格式）
-        colorbar_id: 父色板的ID
-        purity_threshold: 颜色接受的最小纯度分数
-
-    Returns:
-        纯色分析字典列表
+    # WARNING: This function is deprecated. It uses the old single-match logic for each block.
+    # Use `analyze_colorbar_with_best_card_match` for the new multi-card matching pipeline.
     """
     analyses = []
-
-    # 逐个分析每个颜色块
     for i, block in enumerate(colorbar_blocks):
         analysis = analyze_pure_color_block(
             block,
             block_id=i + 1,
             colorbar_id=colorbar_id,
-            purity_threshold=purity_threshold,  # 传递纯度阈值
+            purity_threshold=purity_threshold,
         )
         analyses.append(analysis)
-
     return analyses
 
 
@@ -221,13 +312,11 @@ def pure_colorbar_analysis_pipeline(
     model_path: str = None,
     # 新增：YOLO色块检测参数
     yolo_block_confidence: float = 0.5,
-    yolo_block_iou: float = 0.45,
     # 色块过滤参数
     block_area_threshold: int = 50,
-    block_aspect_ratio: float = 0.3,
-    min_square_size: int = 5,
     # 纯色分析参数
     purity_threshold: float = 0.8,
+    **kwargs,
 ) -> dict:
     """
     完整的基于纯色的色板分析流水线。
@@ -237,21 +326,6 @@ def pure_colorbar_analysis_pipeline(
     2. 对每个色板，使用YOLO检测单个颜色块 (best.pt)
     3. 寻找纯色/主导色（非平均值）
     4. 与标准真值匹配，提供精确的CMYK和Delta E报告
-
-    Args:
-        pil_image: 输入PIL图像
-        confidence_threshold: YOLO颜色条置信度阈值
-        box_expansion: YOLO框扩展像素
-        model_path: YOLO颜色条模型路径
-        yolo_block_confidence: YOLO色块检测置信度阈值
-        yolo_block_iou: YOLO色块检测IoU阈值
-        block_area_threshold: 色板内块的最小面积
-        block_aspect_ratio: 块的最小长宽比
-        min_square_size: 检测块的最小宽度和高度（像素）
-        purity_threshold: 颜色接受的最小纯度分数
-
-    Returns:
-        包含完整纯色分析结果的字典
     """
     if pil_image is None:
         return {"error": "No image provided"}
@@ -261,11 +335,9 @@ def pure_colorbar_analysis_pipeline(
         print("Step 1: Detecting colorbars with YOLO (best0710.pt)...")
         model = load_yolo_model(model_path)
 
-        # 将PIL转换为OpenCV
         opencv_image = np.array(pil_image.convert("RGB"))
         opencv_image = cv2.cvtColor(opencv_image, cv2.COLOR_RGB2BGR)
 
-        # 运行YOLO颜色条检测
         (
             annotated_image,
             colorbar_boxes,
@@ -289,9 +361,10 @@ def pure_colorbar_analysis_pipeline(
 
         # 步骤2：初始化YOLO色块检测器 (best.pt)
         print("Step 2: Initializing YOLO block detector (best.pt)...")
-        block_detector = YOLOBlockDetector()
-        if not block_detector.model_loaded:
-            return {"error": "YOLO block detection model failed to load."}
+        try:
+            block_model = load_yolo_block_model()
+        except (FileNotFoundError, RuntimeError) as e:
+            return {"error": str(e)}
 
         colorbar_results = []
 
@@ -301,46 +374,31 @@ def pure_colorbar_analysis_pipeline(
             colorbar_id = i + 1
             print(f"  Processing colorbar {colorbar_id}/{len(colorbar_segments)}...")
 
-            # 步骤2.1: 使用YOLO检测色块 (替换传统算法)
-            detected_blocks = block_detector.detect_blocks(
+            (
+                segmented_colorbar,
+                color_blocks,
+                block_count,
+            ) = detect_blocks_with_yolo(
                 segment,
+                block_model,
                 confidence_threshold=yolo_block_confidence,
-                iou_threshold=yolo_block_iou,
-            )
-
-            # 步骤2.2: 过滤色块
-            filtered_blocks_info = filter_blocks_by_criteria(
-                detected_blocks,
                 min_area=block_area_threshold,
-                min_aspect_ratio=block_aspect_ratio,
-                min_size=min_square_size,
-            )
-            
-            # 步骤2.3: 提取色块图像
-            color_blocks = []
-            for block_info in filtered_blocks_info:
-                x, y, w, h = block_info['bbox']
-                color_blocks.append(segment[y:y+h, x:x+w])
-
-            block_count = len(color_blocks)
-
-            # 步骤2.4: 可视化YOLO色块检测结果
-            segmented_colorbar = block_detector.visualize_detections(
-                segment, filtered_blocks_info
             )
 
-            # 步骤3：每个块的纯色分析
+            # 步骤3：[新流程] 对色板进行整体最佳匹配分析
             print(f"  Analyzing {block_count} pure colors in colorbar {colorbar_id}...")
-            pure_color_analyses = []
+            pure_color_analyses, best_match_card_id = [], None
 
             if block_count > 0:
-                pure_color_analyses = analyze_colorbar_pure_colors(
+                (
+                    pure_color_analyses,
+                    best_match_card_id,
+                ) = analyze_colorbar_with_best_card_match(
                     color_blocks,
                     colorbar_id=colorbar_id,
                     purity_threshold=purity_threshold,
                 )
 
-            # 将片段转换为PIL以便更好的界面集成
             colorbar_result = {
                 "colorbar_id": colorbar_id,
                 "confidence": confidence,
@@ -354,11 +412,12 @@ def pure_colorbar_analysis_pipeline(
                 "color_blocks": color_blocks,
                 "block_count": block_count,
                 "pure_color_analyses": pure_color_analyses,
+                "best_match_card_id": best_match_card_id,  # [新增] 添加最佳匹配ID
             }
 
             colorbar_results.append(colorbar_result)
 
-        # 计算总体统计信息
+        # ... (后续统计代码保持不变) ...
         total_blocks = sum(result["block_count"] for result in colorbar_results)
         all_delta_e_values = []
         excellent_count = 0
@@ -367,20 +426,19 @@ def pure_colorbar_analysis_pipeline(
 
         for result in colorbar_results:
             for analysis in result["pure_color_analyses"]:
-                if "error" not in analysis:
+                if "error" not in analysis and "ground_truth_match" in analysis:
                     gt_match = analysis["ground_truth_match"]
                     delta_e = gt_match["delta_e"]
                     all_delta_e_values.append(delta_e)
 
-                    if gt_match["is_excellent"]:
+                    if gt_match.get("is_excellent", False):
                         excellent_count += 1
-                    if gt_match["is_acceptable"]:
+                    if gt_match.get("is_acceptable", False):
                         acceptable_count += 1
 
                     if analysis["purity_score"] >= 0.8:
                         high_purity_count += 1
 
-        # 计算准确性统计信息
         accuracy_stats = {}
         if all_delta_e_values:
             import statistics
@@ -413,6 +471,7 @@ def pure_colorbar_analysis_pipeline(
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         return {
             "error": f"Error in pure colorbar analysis pipeline: {str(e)}",
@@ -424,36 +483,20 @@ def pure_colorbar_analysis_for_gradio(
     pil_image: Image.Image,
     confidence_threshold: float = 0.5,
     box_expansion: int = 10,
-    # 新增YOLO色块检测参数
     yolo_block_confidence: float = 0.5,
-    yolo_block_iou: float = 0.45,
-    # 色块过滤参数
     block_area_threshold: int = 50,
-    block_aspect_ratio: float = 0.3,
-    min_square_size: int = 5,
     purity_threshold: float = 0.8,
+    **kwargs,
 ) -> tuple[Image.Image, list[dict], str, int]:
     """
     为Gradio界面优化的纯色色板分析流水线包装器。
-
-    Returns:
-        返回元组：(
-            标注图像,
-            包含纯色的色板数据,
-            分析报告,
-            找到的总块数
-        )
     """
-    # 运行完整的纯色分析流水线
     result = pure_colorbar_analysis_pipeline(
         pil_image,
         confidence_threshold=confidence_threshold,
         box_expansion=box_expansion,
         yolo_block_confidence=yolo_block_confidence,
-        yolo_block_iou=yolo_block_iou,
         block_area_threshold=block_area_threshold,
-        block_aspect_ratio=block_aspect_ratio,
-        min_square_size=min_square_size,
         purity_threshold=purity_threshold,
     )
 
@@ -464,24 +507,29 @@ def pure_colorbar_analysis_for_gradio(
     if not result.get("success", False):
         return pil_image, [], "❌ Pure color analysis failed", 0
 
-    # 将标注图像转换为PIL
     annotated_pil = Image.fromarray(
         cv2.cvtColor(result["annotated_image"], cv2.COLOR_BGR2RGB)
     )
-
-    # 准备包含纯色分析的色板数据
     colorbar_data = result.get("colorbar_results", [])
 
     # 构建综合分析报告
     report = "🎯 YOLO Direct Block Analysis Results\n"
     report += "=" * 55 + "\n\n"
-    report += "📊 Summary:\n"
+    
+    # [修改] 在报告中加入最佳匹配色卡ID
+    for i, colorbar_result in enumerate(result["colorbar_results"]):
+        best_card_id = colorbar_result.get("best_match_card_id")
+        if best_card_id:
+            report += f"🎨 Colorbar #{i+1} - Best Match Card: {best_card_id.upper()}\n"
+        else:
+            report += f"🎨 Colorbar #{i+1} - No Standard Card Match Found\n"
+
+    report += "\n📊 Overall Summary:\n"
     report += f"  • Total color blocks found: {result['total_blocks']}\n"
 
-    # 添加准确性统计信息
     accuracy_stats = result.get("accuracy_statistics", {})
     if accuracy_stats:
-        report += f"  • Average ΔE: {accuracy_stats['average_delta_e']:.2f}\n"
+        report += f"  • Average ΔE (against best cards): {accuracy_stats['average_delta_e']:.2f}\n"
         report += f"  • ΔE Range: {accuracy_stats['min_delta_e']:.2f} - {accuracy_stats['max_delta_e']:.2f}\n"
         report += f"  • Excellent colors (ΔE < 1.0): {accuracy_stats['excellent_colors']}/{accuracy_stats['total_analyzed']} ({accuracy_stats['excellent_percentage']:.1f}%)\n"
         report += f"  • Acceptable colors (ΔE < 3.0): {accuracy_stats['acceptable_colors']}/{accuracy_stats['total_analyzed']} ({accuracy_stats['acceptable_percentage']:.1f}%)\n"
@@ -491,12 +539,11 @@ def pure_colorbar_analysis_for_gradio(
 
     for colorbar_result in result["colorbar_results"]:
         block_count = colorbar_result["block_count"]
-        report += f"🎨 Detected Blocks (Total: {block_count}):\n"
+        best_card_id = colorbar_result.get("best_match_card_id", "N/A")
+        
+        report += f"🔎 Details for Colorbar (Matched to {best_card_id}):\n"
 
         if block_count > 0:
-            report += "  • Pure colors with CMYK values and delta E:\n"
-
-            # 为每个块添加详细的纯色分析
             for analysis in colorbar_result["pure_color_analyses"]:
                 if "error" not in analysis:
                     block_id = analysis.get("block_id", "?")
@@ -506,32 +553,27 @@ def pure_colorbar_analysis_for_gradio(
                     color_quality = analysis["color_quality"]
                     pure_hex = f"#{pure_rgb[0]:02x}{pure_rgb[1]:02x}{pure_rgb[2]:02x}"
 
-                    report += f"    {block_id}: {pure_hex} "
-                    report += f"(C={pure_cmyk[0]}% M={pure_cmyk[1]}% Y={pure_cmyk[2]}% K={pure_cmyk[3]}%)"
-
-                    # 添加纯度信息
+                    report += f"    - Block {block_id}: {pure_hex} "
+                    report += f"(C{pure_cmyk[0]} M{pure_cmyk[1]} Y{pure_cmyk[2]} K{pure_cmyk[3]})"
                     report += f" | Purity: {purity_score:.2f} ({color_quality})"
 
-                    # 添加标准真值比较
-                    gt_match = analysis["ground_truth_match"]
-                    if gt_match["closest_color"]:
-                        delta_e = gt_match["delta_e"]
-                        accuracy_level = gt_match["accuracy_level"]
-                        gt_color = gt_match["closest_color"]
+                    if "ground_truth_match" in analysis:
+                        gt_match = analysis["ground_truth_match"]
+                        if gt_match and gt_match.get("closest_color"):
+                            delta_e = gt_match["delta_e"]
+                            accuracy_level = gt_match["accuracy_level"]
+                            gt_color = gt_match["closest_color"]
 
-                        report += f" | ΔE: {delta_e:.2f} ({accuracy_level})"
-                        report += f" vs {gt_color['name']}"
+                            report += f" | ΔE: {delta_e:.2f} ({accuracy_level})"
+                            report += f" vs {gt_color['name']}"
 
-                        # 添加状态指示器
-                        if gt_match["is_excellent"]:
-                            report += " ✅"
-                        elif gt_match["is_acceptable"]:
-                            report += " ⚠️"
-                        else:
-                            report += " ❌"
-
+                            if gt_match.get("is_excellent", False):
+                                report += " ✅"
+                            elif gt_match.get("is_acceptable", False):
+                                report += " ⚠️"
+                            else:
+                                report += " ❌"
                     report += "\n"
-
         report += "\n"
 
     return (annotated_pil, colorbar_data, report, result["total_blocks"])
