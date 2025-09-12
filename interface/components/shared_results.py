@@ -1,252 +1,204 @@
-"""
-颜色条分析共享结果组件
+# interface/components/shared_results.py
 
-此模块提供可在颜色条分析和真值演示界面之间共享的结果显示组件。
-结果设计为简洁的单行组显示，带有清晰的视觉指示器。
+"""
+Shared UI component for displaying colorbar analysis results in a structured HTML format.
 """
 
+from PIL import Image
 import base64
-import io
-
-import gradio as gr
+from io import BytesIO
 
 
-def create_concise_colorbar_display(colorbar_data: list[dict]) -> str:
+def image_to_base64(pil_image: Image.Image) -> str:
     """
-    为颜色条分析结果创建简洁的HTML显示
-
-    Args:
-        colorbar_data: 颜色条分析结果列表
-
-    Returns:
-        包含简洁颜色条显示的HTML字符串
+    [最终修正] Convert a PIL Image to a Base64 string for embedding in HTML, with robust error handling.
     """
-    # 检查是否有颜色条数据
-    if not colorbar_data:
-        return "<div class='no-results'>无可用的颜色条数据</div>"
-
-    # CSS样式定义 - 设计简洁紧凑的显示风格
-    html = """
-    <style>
-    /* 颜色条容器样式 */
-    .colorbar-container { margin-bottom: 15px; border: 1px solid #ddd; border-radius: 6px; padding: 10px; background: #fafafa; }
-
-    /* 颜色条标题栏样式 */
-    .colorbar-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding: 8px; background: #f0f0f0; border-radius: 4px; }
-    .colorbar-title { font-weight: bold; color: #333; font-size: 14px; }
-    .colorbar-confidence { background: #4CAF50; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; }
-
-    /* 颜色条图像显示样式 */
-    .colorbar-images { display: flex; gap: 10px; margin-bottom: 10px; }
-    .colorbar-image { flex: 1; text-align: center; }
-    .colorbar-image img { max-width: 100%; height: 60px; border: 1px solid #ccc; border-radius: 3px; }
-    .colorbar-image-label { font-size: 10px; color: #666; margin-top: 2px; }
-
-    /* 色块网格布局样式 */
-    .color-blocks-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
-    .color-block { display: flex; align-items: center; gap: 8px; padding: 6px; background: white; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; }
-
-    /* 根据准确性级别的色块样式 */
-    .color-block.excellent { border-left: 4px solid #4CAF50; }  /* 优秀：绿色 */
-    .color-block.acceptable { border-left: 4px solid #FF9800; } /* 可接受：橙色 */
-    .color-block.poor { border-left: 4px solid #f44336; }       /* 较差：红色 */
-
-    /* 颜色预览和信息样式 */
-    .color-preview { width: 30px; height: 30px; border-radius: 4px; border: 1px solid #333; flex-shrink: 0; }
-    .color-info { flex: 1; }
-    .color-block-id { font-weight: bold; color: #333; }
-    .cmyk-values { color: #666; font-size: 10px; }
-
-    /* Delta E 信息显示样式 */
-    .delta-e-info { display: flex; align-items: center; gap: 4px; }
-    .delta-e-value { font-weight: bold; }
-    .result-indicator { font-size: 12px; }
-
-    /* 统计摘要样式 */
-    .summary-stats { background: #e8f4f8; border: 1px solid #2196F3; border-radius: 4px; padding: 8px; margin-bottom: 10px; font-size: 11px; }
-    .summary-stats-title { font-weight: bold; color: #1976D2; margin-bottom: 4px; }
-    </style>
-    """
-
-    # 计算整体统计数据
-    total_blocks = 0          # 总色块数
-    excellent_count = 0       # 优秀级别色块数
-    acceptable_count = 0      # 可接受级别色块数
-    high_purity_count = 0     # 高纯度色块数
-    all_delta_e = []         # 所有Delta E值
-
-    # 遍历所有颜色条数据统计信息
-    for colorbar in colorbar_data:
-        # 遍历每个颜色条的纯色分析结果
-        for analysis in colorbar.get("pure_color_analyses", []):
-            # 跳过有错误的分析结果
-            if "error" not in analysis:
-                total_blocks += 1
-
-                # 获取真值匹配结果
-                gt_match = analysis.get("ground_truth_match", {})
-
-                # 统计优秀和可接受的色块
-                if gt_match.get("is_excellent"):
-                    excellent_count += 1
-                if gt_match.get("is_acceptable"):
-                    acceptable_count += 1
-
-                # 统计高纯度色块
-                if analysis.get("purity_score", 0) >= 0.8:
-                    high_purity_count += 1
-
-                # 收集所有Delta E值
-                if "delta_e" in gt_match:
-                    all_delta_e.append(gt_match["delta_e"])
-
-    # 添加统计摘要（如果有Delta E数据）
-    if all_delta_e:
-        avg_delta_e = sum(all_delta_e) / len(all_delta_e)  # 计算平均Delta E
-        html += f"""
-        <div class="summary-stats">
-            <div class="summary-stats-title">📊 分析摘要</div>
-            <div>总色块数: {total_blocks} | 平均ΔE: {avg_delta_e:.2f} | 优秀: {excellent_count} | 可接受: {acceptable_count} | 高纯度: {high_purity_count}</div>
-        </div>
-        """
-
-    # 处理每个颜色条的显示
-    for colorbar in colorbar_data:
-        # 提取颜色条基本信息
-        colorbar_id = colorbar.get("colorbar_id", "?")              # 颜色条ID
-        confidence = colorbar.get("confidence", 0)                   # 检测置信度
-        original_colorbar = colorbar.get("original_colorbar")        # 原始检测到的颜色条
-        segmented_colorbar = colorbar.get("segmented_colorbar")      # 分割后的颜色条
-        pure_color_analyses = colorbar.get("pure_color_analyses", []) # 纯色分析结果
-
-        # 创建颜色条容器和标题
-        html += f"""
-        <div class="colorbar-container">
-            <div class="colorbar-header">
-                <div class="colorbar-title">🎯 颜色条 {colorbar_id}</div>
-                <div class="colorbar-confidence">{confidence:.2f}</div>
-            </div>
-        """
-
-        # 显示颜色条图像（原始 | 真值对比）
-        if original_colorbar or segmented_colorbar:
-            html += '<div class="colorbar-images">'
-
-            # 显示原始检测到的颜色条
-            if original_colorbar:
-                # 将PIL图像转换为base64字符串用于HTML显示
-                buffer = io.BytesIO()
-                original_colorbar.save(buffer, format="PNG")
-                img_str = base64.b64encode(buffer.getvalue()).decode()
-                html += f"""
-                <div class="colorbar-image">
-                    <img src="data:image/png;base64,{img_str}" alt="检测到的颜色条">
-                    <div class="colorbar-image-label">检测到的颜色条</div>
-                </div>
-                """
-
-            # 显示分割后的颜色条（如YOLO检测结果）
-            if segmented_colorbar:
-                buffer = io.BytesIO()
-                segmented_colorbar.save(buffer, format="PNG")
-                img_str = base64.b64encode(buffer.getvalue()).decode()
-                html += f"""
-                <div class="colorbar-image">
-                    <img src="data:image/png;base64,{img_str}" alt="真值颜色条">
-                    <div class="colorbar-image-label">真值颜色条</div>
-                </div>
-                """
-
-            html += "</div>"
-
-        # 以简洁网格显示色块分析结果
-        if pure_color_analyses:
-            html += '<div class="color-blocks-grid">'
-
-            # 遍历每个色块的分析结果
-            for analysis in pure_color_analyses:
-                # 跳过有错误的分析结果
-                if "error" in analysis:
-                    continue
-
-                # 提取色块信息
-                block_id = analysis.get("block_id", "?")                    # 色块ID
-                pure_rgb = analysis.get("pure_color_rgb", (0, 0, 0))        # RGB值
-                pure_cmyk = analysis.get("pure_color_cmyk", (0, 0, 0, 0))   # CMYK值
-                gt_match = analysis.get("ground_truth_match", {})           # 真值匹配结果
-
-                # 根据分析质量确定色块样式
-                block_class = "color-block"
-                result_icon = "❌"  # 默认为较差
-
-                if gt_match.get("is_excellent"):
-                    block_class += " excellent"  # 优秀：绿色边框
-                    result_icon = "✅"
-                elif gt_match.get("is_acceptable"):
-                    block_class += " acceptable"  # 可接受：橙色边框
-                    result_icon = "⚠️"
-                else:
-                    block_class += " poor"  # 较差：红色边框
-                    result_icon = "❌"
-
-                # 设置颜色预览的CSS样式
-                color_style = f"background-color: rgb({pure_rgb[0]}, {pure_rgb[1]}, {pure_rgb[2]});"
-
-                # 获取Delta E信息
-                delta_e = gt_match.get("delta_e", 0)
-                delta_e_display = f"ΔE: {delta_e:.2f}" if delta_e > 0 else "ΔE: 无数据"
-
-                # 创建色块显示元素
-                html += f"""
-                <div class="{block_class}">
-                    <div class="color-preview" style="{color_style}"></div>
-                    <div class="color-info">
-                        <div class="color-block-id">{colorbar_id}.{block_id}</div>
-                        <div class="cmyk-values">C:{pure_cmyk[0]} M:{pure_cmyk[1]} Y:{pure_cmyk[2]} K:{pure_cmyk[3]}</div>
-                    </div>
-                    <div class="delta-e-info">
-                        <div class="delta-e-value">{delta_e_display}</div>
-                        <div class="result-indicator">{result_icon}</div>
-                    </div>
-                </div>
-                """
-
-            html += "</div>"
-        else:
-            # 如果没有检测到纯色块，显示提示信息
-            html += '<div style="text-align: center; color: #666; font-style: italic; padding: 10px;">未检测到纯色块</div>'
-
-        html += "</div>"  # 结束颜色条容器
-
-    return html
-
-
-def create_shared_colorbar_results_component():
-    """
-    创建可在多个界面中重用的共享颜色条结果组件
-
-    Returns:
-        用于显示颜色条结果的Gradio HTML组件
-    """
-    return gr.HTML(
-        label="🎨 颜色条分析结果",
-        value="<div style='text-align: center; padding: 20px; color: #666; background: #f9f9f9; border-radius: 6px;'>上传图像并分析以查看详细结果</div>",
-    )
+    if not isinstance(pil_image, Image.Image):
+        return ""
+    try:
+        buffered = BytesIO()
+        if pil_image.mode != "RGB":
+            pil_image = pil_image.convert("RGB")
+        
+        pil_image.save(buffered, format="JPEG", quality=90)
+        img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        return f"data:image/jpeg;base64,{img_str}"
+    except Exception as e:
+        print(f"Error converting image to base64: {e}")
+        return ""
 
 
 def update_shared_results_display(colorbar_data: list[dict]) -> str:
     """
-    使用新的颜色条数据更新共享结果显示
-
-    Args:
-        colorbar_data: 颜色条分析结果列表
-
-    Returns:
-        更新显示的HTML字符串
+    Generate an HTML string to display the results of a colorbar analysis.
+    This is the final version with all requested UI changes.
     """
-    # 检查是否有数据
     if not colorbar_data:
-        return "<div style='text-align: center; padding: 20px; color: #666; background: #f9f9f9; border-radius: 6px;'>无可用的颜色条数据</div>"
+        return "<div class='no-results'>No colorbars detected or analysis failed.</div>"
 
-    # 调用主要的显示创建函数
-    return create_concise_colorbar_display(colorbar_data)
+    html_parts = ["<div class='results-container'>"]
+
+    for i, result in enumerate(colorbar_data):
+        colorbar_id = result.get("colorbar_id", "N/A")
+        best_match_card_id = result.get("best_match_card_id")
+        block_count = result.get("block_count", 0)
+        
+        modal_id = f"modal_{i}"
+        # [新逻辑] 为关闭跳转创建唯一的锚点ID
+        close_anchor_id = f"close_anchor_{i}"
+
+        display_image_b64 = image_to_base64(result.get("segmented_colorbar_pil")) or image_to_base64(result.get("original_segment_pil"))
+
+        # [新逻辑] 在卡片前添加关闭锚点
+        html_parts.append(f"<a id='{close_anchor_id}'></a>")
+        
+        # --- Card Header ---
+        html_parts.append(f"<div class='colorbar-result-card'><div class='card-header'><h3>🎨 Colorbar #{colorbar_id}</h3>")
+        if best_match_card_id == "INVALID_DETECTION":
+            html_parts.append(f"<span class='best-match-invalid'>ERROR: Too many blocks detected ({block_count} > 7)</span>")
+        elif best_match_card_id:
+            html_parts.append(f"<span class='best-match'>Best Match Card: <strong>{best_match_card_id.upper()}</strong></span>")
+        else:
+            html_parts.append("<span class='best-match-none'>No Match Found</span>")
+        html_parts.append("</div>")
+
+        # --- Main Content (Image on Top, Blocks Below) ---
+        html_parts.append("<div class='card-content-top-down'>")
+        
+        # Top Part: Image with Fullscreen button
+        html_parts.append("<div class='image-panel-top'>")
+        if display_image_b64:
+            # Fullscreen Modal Structure
+            html_parts.append(f"""
+            <div class='modal' id='{modal_id}'>
+                <a href='#{close_anchor_id}' class='modal-bg'></a>
+                <div class='modal-content'>
+                    <a href='#{close_anchor_id}' class='modal-close'>&times;</a>
+                    <img src='{display_image_b64}'/>
+                </div>
+            </div>
+            """)
+            # Image container with zoom button
+            html_parts.append(f"<div class='image-wrapper'><img src='{display_image_b64}' alt='Colorbar Segment' /><a href='#{modal_id}' class='zoom-btn'>🔍</a></div>")
+        else:
+            html_parts.append("<p class='error-text'>Image not available</p>")
+        html_parts.append("</div>")
+
+        # Bottom Part: Blocks Grid
+        html_parts.append("<div class='blocks-panel-bottom'>")
+        
+        block_analyses = result.get("pure_color_analyses") or result.get("block_analyses", [])
+
+        if best_match_card_id == "INVALID_DETECTION":
+             html_parts.append("<p class='error-text'>Matching skipped due to too many detected blocks.</p>")
+        elif block_analyses:
+            for analysis in block_analyses:
+                if "error" in analysis: continue
+
+                rgb = analysis.get("pure_color_rgb") or analysis.get("primary_color_rgb", (0,0,0))
+                rgb_hex = f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
+                detected_cmyk = analysis.get("pure_color_cmyk") or analysis.get("primary_color_cmyk", ('N/A','N/A','N/A','N/A'))
+                detected_cmyk_str = f"C{detected_cmyk[0]} M{detected_cmyk[1]} Y{detected_cmyk[2]} K{detected_cmyk[3]}"
+                
+                gt_match = analysis.get("ground_truth_match") or analysis.get("ground_truth_comparison", {})
+                delta_e = gt_match.get("delta_e", float('inf'))
+                
+                status_symbol = ""
+                if "is_excellent" in gt_match:
+                    if gt_match["is_excellent"]: status_symbol = "✅"
+                    elif gt_match["is_acceptable"]: status_symbol = "⚠️"
+                    else: status_symbol = "❌"
+
+                closest_color_info = gt_match.get("closest_color", {})
+                gt_cmyk = closest_color_info.get('cmyk', ('N/A','N/A','N/A','N/A'))
+                gt_cmyk_str = f"C{gt_cmyk[0]} M{gt_cmyk[1]} Y{gt_cmyk[2]} K{gt_cmyk[3]}"
+
+                html_parts.append(f"""
+                <div class='block-card-new'>
+                    <div class='block-color-swatch-new' style='background-color: {rgb_hex};'></div>
+                    <div class='block-details-new'>
+                         <div class='block-detected-cmyk-new'>Detected: {detected_cmyk_str}</div>
+                         <div class='block-gt-cmyk-new'>Standard: {gt_cmyk_str}</div>
+                         <div class='block-delta-e-new'>ΔE: {delta_e:.2f} {status_symbol}</div>
+                    </div>
+                </div>
+                """)
+        html_parts.append("</div>")
+        html_parts.append("</div>")
+        html_parts.append("</div>")
+
+    html_parts.append("</div>")
+
+    # --- CSS Styling ---
+    html_parts.append("""
+    <style>
+        .results-container { font-family: sans-serif; }
+        .no-results, .error-text { text-align: center; color: #888; padding: 20px; }
+        .colorbar-result-card { border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; background: #f9f9f9; padding: 15px; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+        .card-header h3 { margin: 0; color: #333; font-size: 1.1em; }
+        .best-match { background-color: #e7f3ff; color: #005a9e; padding: 5px 10px; border-radius: 12px; font-size: 0.9em; }
+        .best-match-invalid { background-color: #ffe7e7; color: #9e0000; padding: 5px 10px; border-radius: 12px; font-size: 0.9em; font-weight: bold; }
+        
+        .card-content-top-down { display: flex; flex-direction: column; gap: 15px; }
+        .image-panel-top {
+            width: 100%; border: 1px solid #ddd; border-radius: 4px; padding: 5px;
+            background: #fff; display: flex; justify-content: center; align-items: center;
+            max-height: 100px; overflow: hidden;
+        }
+        .image-wrapper { position: relative; max-width: 100%; max-height: 100%; }
+        .image-panel-top img { width: auto; height: auto; max-width: 100%; max-height: 90px; display: block; }
+        .zoom-btn {
+            position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.5); color: white;
+            border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+            text-decoration: none; font-size: 14px; transition: background 0.2s; z-index: 10;
+        }
+        .zoom-btn:hover { background: rgba(0,0,0,0.8); }
+
+        .blocks-panel-bottom {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px; align-content: start;
+        }
+        
+        .block-card-new {
+            border: 1px solid #ccc; border-radius: 6px; background: #fff; padding: 8px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .block-color-swatch-new { width: 50px; height: 50px; border-radius: 4px; border: 1px solid #888; flex-shrink: 0; }
+        .block-details-new { text-align: left; flex-grow: 1; }
+        .block-detected-cmyk-new { font-size: 0.8em; color: #333; line-height: 1.2; }
+        .block-gt-cmyk-new { font-size: 0.8em; color: #777; line-height: 1.2; }
+        .block-delta-e-new { font-size: 0.9em; font-weight: bold; color: #333; margin-top: 4px; }
+
+        /* [修正] Fullscreen Modal Styles */
+        .modal {
+            visibility: hidden; position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%; background: rgba(0,0,0,0.8);
+            z-index: 9998; opacity: 0; transition: opacity 0.3s, visibility 0.3s;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .modal:target { visibility: visible; opacity: 1; }
+        .modal-bg { position: absolute; width: 100%; height: 100%; top: 0; left: 0; cursor: pointer; }
+        .modal-content {
+            position: relative;
+            max-width: 90vw; max-height: 90vh;
+            padding: 10px; background: white; border-radius: 8px;
+        }
+        .modal-content img {
+            display: block;
+            max-width: 100%;
+            max-height: calc(90vh - 20px); /* 90vh minus padding */
+            object-fit: contain; /* [修正] Ensures full image is visible */
+        }
+        .modal-close {
+            position: absolute; top: -15px; right: -15px;
+            text-decoration: none; background: #333; color: #fff;
+            border-radius: 50%; width: 30px; height: 30px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px; line-height: 1; border: 2px solid white;
+            z-index: 100;
+        }
+    </style>
+    """)
+
+    return "".join(html_parts)

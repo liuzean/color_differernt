@@ -1,229 +1,139 @@
+# core/block_detection/yolo_block_detection.py
+
 """
-YOLO色块检测模块
-使用训练好的YOLO模型直接检测色块
+YOLOv8 Block Detection Module
+
+This module provides functions to detect color blocks within a given image
+segment (presumably a colorbar) using a trained YOLOv8 model.
 """
 
 import os
 import cv2
 import numpy as np
-from PIL import Image
 from ultralytics import YOLO
+from PIL import Image
 
+# Global variable to hold the loaded model, preventing redundant loads
+_yolo_block_model = None
 
 def load_yolo_block_model(model_path: str = None) -> YOLO:
     """
-    加载用于色块检测的YOLO模型
+    Load the YOLOv8 model for block detection.
 
     Args:
-        model_path: YOLO模型权重文件路径，默认为 core/block_detection/weights/best.pt
+        model_path: Optional path to the model weights file.
 
     Returns:
-        YOLO模型实例
-
-    Raises:
-        FileNotFoundError: 当模型文件不存在时
+        The loaded YOLO model.
     """
+    global _yolo_block_model
+    if _yolo_block_model is not None:
+        return _yolo_block_model
+
     if model_path is None:
-        # 默认模型路径
-        model_path = "core/block_detection/weights/best.pt"
+        # Determine the path to the weights file relative to this script
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(script_dir, "weights", "best.pt")
 
-    # 检查模型文件是否存在
     if not os.path.exists(model_path):
-        raise FileNotFoundError(f"YOLO色块模型文件未找到: {model_path}")
-
-    print(f"正在加载YOLO色块检测模型: {model_path}")
+        raise FileNotFoundError(f"YOLO block model not found at: {model_path}")
 
     try:
-        model = YOLO(model_path)
-        print("✅ YOLO色块检测模型加载成功")
-        return model
+        print(f"Loading YOLO block detection model from: {model_path}")
+        _yolo_block_model = YOLO(model_path)
+        print("YOLO block model loaded successfully.")
     except Exception as e:
-        raise RuntimeError(f"加载YOLO色块模型失败: {str(e)}") from e
+        raise RuntimeError(f"Failed to load YOLO block model: {e}")
+
+    return _yolo_block_model
 
 
 def detect_blocks_with_yolo(
-    colorbar_image: np.ndarray,
+    segment: np.ndarray,
     model: YOLO,
     confidence_threshold: float = 0.5,
-    min_area: int = 50
+    min_area: int = 50,
 ) -> tuple[np.ndarray, list[np.ndarray], int]:
     """
-    使用YOLO模型检测颜色条中的色块
+    Detect color blocks in a given image segment using YOLOv8, sort them,
+    and return the annotated segment and individual block images.
 
     Args:
-        colorbar_image: 颜色条图像（BGR格式的numpy数组）
-        model: YOLO模型实例
-        confidence_threshold: 检测置信度阈值 (0.0-1.0)
-        min_area: 最小色块面积（像素数）
+        segment: The input image segment (a cropped colorbar).
+        model: The loaded YOLOv8 model.
+        confidence_threshold: The confidence threshold for detection.
+        min_area: The minimum area for a detected block to be considered valid.
 
     Returns:
-        tuple: (标注图像, 色块图像列表, 检测到的色块数量)
+        A tuple containing:
+        - The annotated segment with bounding boxes.
+        - A sorted list of cropped color block images.
+        - The count of valid blocks.
     """
-    if colorbar_image.size == 0:
-        print("⚠️ 输入的颜色条图像为空")
-        return colorbar_image, [], 0
+    if segment is None or segment.size == 0:
+        return np.zeros((100, 100, 3), dtype=np.uint8), [], 0
 
-    print(f"🔍 开始使用YOLO检测色块，置信度阈值: {confidence_threshold}")
+    # Perform prediction
+    results = model.predict(segment, conf=confidence_threshold, verbose=False)
+    
+    # [修正] 获取所有有效的检测框，并增加长宽比过滤
+    boxes = []
+    aspect_ratio_threshold = 1.5 # 定义长宽比阈值
 
-    # 运行YOLO推理
-    try:
-        results = model(colorbar_image, verbose=False)  # verbose=False 减少输出
-    except Exception as e:
-        print(f"❌ YOLO推理失败: {str(e)}")
-        return colorbar_image, [], 0
-
-    # 创建标注图像的副本
-    annotated_image = colorbar_image.copy()
-    color_blocks = []
-
-    height, width = colorbar_image.shape[:2]
-
-    # 处理检测结果
-    for result in results:
-        if result.boxes is None:
-            continue
-
-        boxes = result.boxes.cpu().numpy()
-
-        for i, box in enumerate(boxes):
-            confidence = float(box.conf[0])
-
-            # 根据置信度阈值过滤
-            if confidence < confidence_threshold:
+    for r in results:
+        for box in r.boxes:
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            w, h = x2 - x1, y2 - y1
+            
+            # 过滤掉面积过小的框
+            if w * h < min_area:
+                continue
+            
+            # [新逻辑] 过滤掉长宽比异常的框
+            if w == 0 or h == 0: # 避免除以零
+                continue
+            
+            aspect_ratio = max(w, h) / min(w, h)
+            if aspect_ratio > aspect_ratio_threshold:
+                # 如果长宽比过大，则认为不是有效的色块
                 continue
 
-            # 获取检测框坐标 (x1, y1, x2, y2)
-            x1, y1, x2, y2 = box.xyxy[0].astype(int)
+            boxes.append((x1, y1, x2, y2))
 
-            # 确保坐标在图像范围内
-            x1 = max(0, x1)
-            y1 = max(0, y1)
-            x2 = min(width, x2)
-            y2 = min(height, y2)
+    # 判断方向并排序
+    h_seg, w_seg = segment.shape[:2]
+    is_vertical = h_seg > w_seg
 
-            # 检查面积是否满足最小要求
-            area = (x2 - x1) * (y2 - y1)
-            if area < min_area:
-                print(f"⚠️ 色块面积 {area} 小于最小阈值 {min_area}，跳过")
-                continue
-
-            # 提取色块图像
-            color_block = colorbar_image[y1:y2, x1:x2]
-            if color_block.size > 0:
-                color_blocks.append(color_block)
-
-                # 在标注图像上绘制检测框
-                cv2.rectangle(annotated_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-
-                # 添加标签文本
-                label = f"Block {len(color_blocks)}: {confidence:.2f}"
-                label_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
-
-                # 确保标签不会超出图像边界
-                label_y = max(y1 - 10, label_size[1])
-                cv2.putText(
-                    annotated_image,
-                    label,
-                    (x1, label_y),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5,
-                    (0, 255, 0),
-                    2
-                )
-
-    block_count = len(color_blocks)
-    print(f"✅ YOLO检测完成，共检测到 {block_count} 个色块")
-
-    return annotated_image, color_blocks, block_count
-
-
-def convert_pil_to_opencv(pil_image: Image.Image) -> np.ndarray:
-    """
-    将PIL图像转换为OpenCV格式
-
-    Args:
-        pil_image: PIL图像对象
-
-    Returns:
-        np.ndarray: BGR格式的OpenCV图像
-    """
-    # 转换为RGB numpy数组
-    rgb_array = np.array(pil_image)
-
-    # 如果是灰度图像，转换为3通道
-    if len(rgb_array.shape) == 2:
-        rgb_array = cv2.cvtColor(rgb_array, cv2.COLOR_GRAY2RGB)
-
-    # 如果是RGBA，去掉alpha通道
-    elif rgb_array.shape[2] == 4:
-        rgb_array = rgb_array[:, :, :3]
-
-    # 转换为BGR格式（OpenCV标准）
-    bgr_array = cv2.cvtColor(rgb_array, cv2.COLOR_RGB2BGR)
-
-    return bgr_array
-
-
-def convert_opencv_to_pil(opencv_image: np.ndarray) -> Image.Image:
-    """
-    将OpenCV图像转换为PIL格式
-
-    Args:
-        opencv_image: BGR格式的OpenCV图像
-
-    Returns:
-        Image.Image: PIL图像对象
-    """
-    # 转换为RGB格式
-    rgb_array = cv2.cvtColor(opencv_image, cv2.COLOR_BGR2RGB)
-
-    # 转换为PIL图像
-    pil_image = Image.fromarray(rgb_array)
-
-    return pil_image
-
-
-def test_yolo_block_detection(image_path: str, model_path: str = None):
-    """
-    测试YOLO色块检测功能
-
-    Args:
-        image_path: 测试图像路径
-        model_path: 模型路径
-    """
-    try:
-        # 加载检测器
-        detector = load_yolo_block_model(model_path)
-
-        # 读取图像
-        image = cv2.imread(image_path)
-        if image is None:
-            print(f"❌ 无法读取图像: {image_path}")
-            return
-
-        print(f"📷 测试图像: {image_path}")
-        print(f"📐 图像尺寸: {image.shape}")
-
-        # 检测色块
-        annotated_image, color_blocks, block_count = detect_blocks_with_yolo(
-            image, detector
-        )
-
-        print(f"🎯 检测结果: {block_count} 个色块")
-
-        # 保存结果
-        output_path = image_path.replace('.', '_yolo_result.')
-        cv2.imwrite(output_path, annotated_image)
-        print(f"💾 结果已保存到: {output_path}")
-
-    except Exception as e:
-        print(f"❌ 测试失败: {str(e)}")
-
-
-if __name__ == "__main__":
-    # 示例测试
-    test_image = "test_colorbar.jpg"  # 替换为实际的测试图像路径
-    if os.path.exists(test_image):
-        test_yolo_block_detection(test_image)
+    if is_vertical:
+        # 如果是纵向, 按 Y 坐标排序 (从上到下)
+        boxes.sort(key=lambda b: b[1])
     else:
-        print("请提供测试图像路径进行测试")
+        # 如果是横向, 按 X 坐标排序 (从左到右)
+        boxes.sort(key=lambda b: b[0])
+
+    annotated_segment = segment.copy()
+    color_blocks = []
+    block_count = 0
+
+    # 遍历排序后的检测框
+    for i, (x1, y1, x2, y2) in enumerate(boxes):
+        # Draw bounding box and label on the annotated segment
+        cv2.rectangle(annotated_segment, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        label = f"{i + 1}"
+        cv2.putText(
+            annotated_segment,
+            label,
+            (x1, y1 - 10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (0, 255, 0),
+            2,
+        )
+        
+        # Crop the block from the original segment
+        block_image = segment[y1:y2, x1:x2]
+        if block_image.size > 0:
+            color_blocks.append(block_image)
+            block_count += 1
+            
+    return annotated_segment, color_blocks, block_count
