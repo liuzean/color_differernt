@@ -22,13 +22,19 @@ from core.block_detection.pure_colorbar_analysis import (
 class TestPureColorExtraction:
     """Test pure color extraction functionality"""
 
-    def create_pure_color_block(self, color: tuple[int, int, int], size: tuple[int, int] = (50, 50)) -> np.ndarray:
+    def create_pure_color_block(
+        self, color: tuple[int, int, int], size: tuple[int, int] = (50, 50)
+    ) -> np.ndarray:
         """Create a color block with uniform color (BGR format)"""
         height, width = size
-        block = np.full((height, width, 3), color[::-1], dtype=np.uint8)  # Convert RGB to BGR
+        block = np.full(
+            (height, width, 3), color[::-1], dtype=np.uint8
+        )  # Convert RGB to BGR
         return block
 
-    def create_mixed_color_block(self, colors: list[tuple[int, int, int]], size: tuple[int, int] = (50, 50)) -> np.ndarray:
+    def create_mixed_color_block(
+        self, colors: list[tuple[int, int, int]], size: tuple[int, int] = (50, 50)
+    ) -> np.ndarray:
         """Create a color block with mixed colors (BGR format)"""
         height, width = size
         block = np.zeros((height, width, 3), dtype=np.uint8)
@@ -100,7 +106,9 @@ class TestPureColorBlockAnalysis:
     def create_test_block(self, color: tuple[int, int, int]) -> np.ndarray:
         """Create a test color block"""
         height, width = 40, 40
-        block = np.full((height, width, 3), color[::-1], dtype=np.uint8)  # Convert RGB to BGR
+        block = np.full(
+            (height, width, 3), color[::-1], dtype=np.uint8
+        )  # Convert RGB to BGR
         return block
 
     def test_analyze_pure_color_block_success(self):
@@ -165,7 +173,9 @@ class TestPureColorBlockAnalysis:
 class TestPureColorbarAnalysisPipeline:
     """Test the complete pure colorbar analysis pipeline"""
 
-    def create_test_image_with_colorbar(self, size: tuple[int, int] = (400, 300)) -> np.ndarray:
+    def create_test_image_with_colorbar(
+        self, size: tuple[int, int] = (400, 300)
+    ) -> np.ndarray:
         """Create a test image with a colorbar for testing"""
         width, height = size
         image = np.ones((height, width, 3), dtype=np.uint8) * 255  # White background
@@ -188,7 +198,7 @@ class TestPureColorbarAnalysisPipeline:
         for i, color in enumerate(colors):
             x_start = start_x + i * color_width
             x_end = x_start + color_width
-            image[start_y:start_y + colorbar_height, x_start:x_end] = color
+            image[start_y : start_y + colorbar_height, x_start:x_end] = color
 
         return image
 
@@ -262,7 +272,12 @@ class TestPureColorbarAnalysisPipeline:
 
         try:
             # Run Gradio wrapper
-            annotated_image, colorbar_data, report, total_blocks = pure_colorbar_analysis_for_gradio(
+            (
+                annotated_image,
+                colorbar_data,
+                report,
+                total_blocks,
+            ) = pure_colorbar_analysis_for_gradio(
                 test_image_pil,
                 confidence_threshold=0.3,
                 box_expansion=5,
@@ -310,13 +325,18 @@ class TestPureColorAnalysisIntegration:
         for expected_color in test_colors:
             # Create pure color block
             height, width = 30, 30
-            block = np.full((height, width, 3), expected_color[::-1], dtype=np.uint8)  # BGR
+            block = np.full(
+                (height, width, 3), expected_color[::-1], dtype=np.uint8
+            )  # BGR
 
             # Extract pure color
             extracted_color, purity_score = extract_pure_color_from_block(block)
 
             # Check accuracy (allow small tolerance for conversion artifacts)
-            color_diff = sum(abs(a - b) for a, b in zip(extracted_color, expected_color, strict=False))
+            color_diff = sum(
+                abs(a - b)
+                for a, b in zip(extracted_color, expected_color, strict=False)
+            )
             assert color_diff <= 10  # Allow small difference
             assert purity_score > 0.9  # Should be very pure
 
@@ -343,7 +363,9 @@ class TestPureColorAnalysisIntegration:
         # Using pure cyan which should match the "Pure Cyan" ground truth color
         cyan_color = (0, 255, 255)  # RGB
         height, width = 30, 30
-        cyan_block = np.full((height, width, 3), cyan_color[::-1], dtype=np.uint8)  # BGR
+        cyan_block = np.full(
+            (height, width, 3), cyan_color[::-1], dtype=np.uint8
+        )  # BGR
 
         # Analyze the block
         analysis = analyze_pure_color_block(cyan_block)
@@ -359,7 +381,12 @@ class TestPureColorAnalysisIntegration:
 
         # Check accuracy classification
         assert gt_match["accuracy_level"] in [
-            "Excellent", "Very Good", "Good", "Acceptable", "Poor", "Very Poor"
+            "Excellent",
+            "Very Good",
+            "Good",
+            "Acceptable",
+            "Poor",
+            "Very Poor",
         ]
 
     def test_error_handling(self):

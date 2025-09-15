@@ -16,6 +16,7 @@ from PIL import Image
 # Global variable to hold the loaded model, preventing redundant loads
 _yolo_block_model = None
 
+
 def load_yolo_block_model(model_path: str = None) -> YOLO:
     """
     Load the YOLOv8 model for block detection.
@@ -75,24 +76,24 @@ def detect_blocks_with_yolo(
 
     # Perform prediction
     results = model.predict(segment, conf=confidence_threshold, verbose=False)
-    
+
     # [修正] 获取所有有效的检测框，并增加长宽比过滤
     boxes = []
-    aspect_ratio_threshold = 1.5 # 定义长宽比阈值
+    aspect_ratio_threshold = 1.5  # 定义长宽比阈值
 
     for r in results:
         for box in r.boxes:
             x1, y1, x2, y2 = map(int, box.xyxy[0])
             w, h = x2 - x1, y2 - y1
-            
+
             # 过滤掉面积过小的框
             if w * h < min_area:
                 continue
-            
+
             # [新逻辑] 过滤掉长宽比异常的框
-            if w == 0 or h == 0: # 避免除以零
+            if w == 0 or h == 0:  # 避免除以零
                 continue
-            
+
             aspect_ratio = max(w, h) / min(w, h)
             if aspect_ratio > aspect_ratio_threshold:
                 # 如果长宽比过大，则认为不是有效的色块
@@ -129,11 +130,11 @@ def detect_blocks_with_yolo(
             (0, 255, 0),
             2,
         )
-        
+
         # Crop the block from the original segment
         block_image = segment[y1:y2, x1:x2]
         if block_image.size > 0:
             color_blocks.append(block_image)
             block_count += 1
-            
+
     return annotated_segment, color_blocks, block_count

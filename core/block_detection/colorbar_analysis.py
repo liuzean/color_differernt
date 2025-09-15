@@ -99,8 +99,7 @@ def enhance_with_ground_truth_comparison(block_analyses: list[dict]) -> list[dic
                     else None,
                     "delta_e": delta_e,
                     "accuracy_level": ground_truth_checker._get_accuracy_level(delta_e),
-                    "is_acceptable": delta_e
-                    < 3.0,  # Delta E < 3 是可接受颜色的阈值
+                    "is_acceptable": delta_e < 3.0,  # Delta E < 3 是可接受颜色的阈值
                 }
             }
         )
@@ -358,9 +357,7 @@ def colorbar_analysis_for_gradio(
         colorbar_entry = {
             "colorbar_id": colorbar_id,
             "confidence": confidence,
-            "original_colorbar": colorbar_result[
-                "original_segment_pil"
-            ],  # ✨ 原始片段
+            "original_colorbar": colorbar_result["original_segment_pil"],  # ✨ 原始片段
             "segmented_colorbar": colorbar_result["segmented_colorbar_pil"],
             "color_blocks": color_blocks_pil,
             "block_count": block_count,

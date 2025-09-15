@@ -49,7 +49,9 @@ class TestGroundTruthColorChecker:
         print(f"Delta E: {delta_e}")
 
         # Delta E should be low for such similar colors
-        assert delta_e < 10.0, f"Delta E should be low for similar colors, got {delta_e}"
+        assert (
+            delta_e < 10.0
+        ), f"Delta E should be low for similar colors, got {delta_e}"
 
     def test_delta_e_calculation_direct_comparison(self):
         """Test delta E calculation between the two similar cyan colors"""
@@ -59,6 +61,7 @@ class TestGroundTruthColorChecker:
 
         # Create a temporary ground truth color for comparison
         from core.color.ground_truth_checker import GroundTruthColor
+
         temp_gt = GroundTruthColor(id=999, name="Test Cyan", cmyk=(100, 0, 0, 0))
         temp_gt.rgb = ground_truth_cyan
 
@@ -69,15 +72,17 @@ class TestGroundTruthColorChecker:
         print(f"Delta E: {delta_e}")
 
         # These colors are very similar, delta E should be low
-        assert delta_e < 5.0, f"Delta E should be very low for such similar colors, got {delta_e}"
+        assert (
+            delta_e < 5.0
+        ), f"Delta E should be very low for such similar colors, got {delta_e}"
 
     def test_fixed_order_comparison(self):
         """Test fixed order comparison functionality"""
         # Test with some detected colors
         detected_colors = [
-            (1, 158, 230),   # Detected cyan
+            (1, 158, 230),  # Detected cyan
             (220, 50, 150),  # Detected magenta
-            (255, 255, 0),   # Detected yellow
+            (255, 255, 0),  # Detected yellow
         ]
 
         results = self.checker.calculate_delta_e_fixed_order(detected_colors)
@@ -94,7 +99,9 @@ class TestGroundTruthColorChecker:
         print(f"Cyan accuracy: {cyan_result['accuracy_level']}")
 
         # Delta E should be reasonable for cyan
-        assert cyan_result["delta_e"] < 20.0, f"Cyan delta E should be reasonable, got {cyan_result['delta_e']}"
+        assert (
+            cyan_result["delta_e"] < 20.0
+        ), f"Cyan delta E should be reasonable, got {cyan_result['delta_e']}"
 
     def test_closest_color_matching(self):
         """Test finding closest color functionality"""
@@ -110,7 +117,9 @@ class TestGroundTruthColorChecker:
         print(f"Delta E: {delta_e}")
 
         # Should find cyan as closest
-        assert delta_e < 15.0, f"Delta E to closest cyan should be reasonable, got {delta_e}"
+        assert (
+            delta_e < 15.0
+        ), f"Delta E to closest cyan should be reasonable, got {delta_e}"
 
     def test_accuracy_levels(self):
         """Test accuracy level classification"""
@@ -172,4 +181,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"✗ Test failed: {e}")
         import traceback
+
         traceback.print_exc()

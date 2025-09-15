@@ -19,7 +19,7 @@ def image_to_base64(pil_image: Image.Image) -> str:
         buffered = BytesIO()
         if pil_image.mode != "RGB":
             pil_image = pil_image.convert("RGB")
-        
+
         pil_image.save(buffered, format="JPEG", quality=90)
         img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
         return f"data:image/jpeg;base64,{img_str}"
@@ -42,34 +42,43 @@ def update_shared_results_display(colorbar_data: list[dict]) -> str:
         colorbar_id = result.get("colorbar_id", "N/A")
         best_match_card_id = result.get("best_match_card_id")
         block_count = result.get("block_count", 0)
-        
+
         modal_id = f"modal_{i}"
         # [新逻辑] 为关闭跳转创建唯一的锚点ID
         close_anchor_id = f"close_anchor_{i}"
 
-        display_image_b64 = image_to_base64(result.get("segmented_colorbar_pil")) or image_to_base64(result.get("original_segment_pil"))
+        display_image_b64 = image_to_base64(
+            result.get("segmented_colorbar_pil")
+        ) or image_to_base64(result.get("original_segment_pil"))
 
         # [新逻辑] 在卡片前添加关闭锚点
         html_parts.append(f"<a id='{close_anchor_id}'></a>")
-        
+
         # --- Card Header ---
-        html_parts.append(f"<div class='colorbar-result-card'><div class='card-header'><h3>🎨 Colorbar #{colorbar_id}</h3>")
+        html_parts.append(
+            f"<div class='colorbar-result-card'><div class='card-header'><h3>🎨 Colorbar #{colorbar_id}</h3>"
+        )
         if best_match_card_id == "INVALID_DETECTION":
-            html_parts.append(f"<span class='best-match-invalid'>ERROR: Too many blocks detected ({block_count} > 7)</span>")
+            html_parts.append(
+                f"<span class='best-match-invalid'>ERROR: Too many blocks detected ({block_count} > 7)</span>"
+            )
         elif best_match_card_id:
-            html_parts.append(f"<span class='best-match'>Best Match Card: <strong>{best_match_card_id.upper()}</strong></span>")
+            html_parts.append(
+                f"<span class='best-match'>Best Match Card: <strong>{best_match_card_id.upper()}</strong></span>"
+            )
         else:
             html_parts.append("<span class='best-match-none'>No Match Found</span>")
         html_parts.append("</div>")
 
         # --- Main Content (Image on Top, Blocks Below) ---
         html_parts.append("<div class='card-content-top-down'>")
-        
+
         # Top Part: Image with Fullscreen button
         html_parts.append("<div class='image-panel-top'>")
         if display_image_b64:
             # Fullscreen Modal Structure
-            html_parts.append(f"""
+            html_parts.append(
+                f"""
             <div class='modal' id='{modal_id}'>
                 <a href='#{close_anchor_id}' class='modal-bg'></a>
                 <div class='modal-content'>
@@ -77,43 +86,61 @@ def update_shared_results_display(colorbar_data: list[dict]) -> str:
                     <img src='{display_image_b64}'/>
                 </div>
             </div>
-            """)
+            """
+            )
             # Image container with zoom button
-            html_parts.append(f"<div class='image-wrapper'><img src='{display_image_b64}' alt='Colorbar Segment' /><a href='#{modal_id}' class='zoom-btn'>🔍</a></div>")
+            html_parts.append(
+                f"<div class='image-wrapper'><img src='{display_image_b64}' alt='Colorbar Segment' /><a href='#{modal_id}' class='zoom-btn'>🔍</a></div>"
+            )
         else:
             html_parts.append("<p class='error-text'>Image not available</p>")
         html_parts.append("</div>")
 
         # Bottom Part: Blocks Grid
         html_parts.append("<div class='blocks-panel-bottom'>")
-        
-        block_analyses = result.get("pure_color_analyses") or result.get("block_analyses", [])
+
+        block_analyses = result.get("pure_color_analyses") or result.get(
+            "block_analyses", []
+        )
 
         if best_match_card_id == "INVALID_DETECTION":
-             html_parts.append("<p class='error-text'>Matching skipped due to too many detected blocks.</p>")
+            html_parts.append(
+                "<p class='error-text'>Matching skipped due to too many detected blocks.</p>"
+            )
         elif block_analyses:
             for analysis in block_analyses:
-                if "error" in analysis: continue
+                if "error" in analysis:
+                    continue
 
-                rgb = analysis.get("pure_color_rgb") or analysis.get("primary_color_rgb", (0,0,0))
+                rgb = analysis.get("pure_color_rgb") or analysis.get(
+                    "primary_color_rgb", (0, 0, 0)
+                )
                 rgb_hex = f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
-                detected_cmyk = analysis.get("pure_color_cmyk") or analysis.get("primary_color_cmyk", ('N/A','N/A','N/A','N/A'))
+                detected_cmyk = analysis.get("pure_color_cmyk") or analysis.get(
+                    "primary_color_cmyk", ("N/A", "N/A", "N/A", "N/A")
+                )
                 detected_cmyk_str = f"C{detected_cmyk[0]} M{detected_cmyk[1]} Y{detected_cmyk[2]} K{detected_cmyk[3]}"
-                
-                gt_match = analysis.get("ground_truth_match") or analysis.get("ground_truth_comparison", {})
-                delta_e = gt_match.get("delta_e", float('inf'))
-                
+
+                gt_match = analysis.get("ground_truth_match") or analysis.get(
+                    "ground_truth_comparison", {}
+                )
+                delta_e = gt_match.get("delta_e", float("inf"))
+
                 status_symbol = ""
                 if "is_excellent" in gt_match:
-                    if gt_match["is_excellent"]: status_symbol = "✅"
-                    elif gt_match["is_acceptable"]: status_symbol = "⚠️"
-                    else: status_symbol = "❌"
+                    if gt_match["is_excellent"]:
+                        status_symbol = "✅"
+                    elif gt_match["is_acceptable"]:
+                        status_symbol = "⚠️"
+                    else:
+                        status_symbol = "❌"
 
                 closest_color_info = gt_match.get("closest_color", {})
-                gt_cmyk = closest_color_info.get('cmyk', ('N/A','N/A','N/A','N/A'))
+                gt_cmyk = closest_color_info.get("cmyk", ("N/A", "N/A", "N/A", "N/A"))
                 gt_cmyk_str = f"C{gt_cmyk[0]} M{gt_cmyk[1]} Y{gt_cmyk[2]} K{gt_cmyk[3]}"
 
-                html_parts.append(f"""
+                html_parts.append(
+                    f"""
                 <div class='block-card-new'>
                     <div class='block-color-swatch-new' style='background-color: {rgb_hex};'></div>
                     <div class='block-details-new'>
@@ -122,7 +149,8 @@ def update_shared_results_display(colorbar_data: list[dict]) -> str:
                          <div class='block-delta-e-new'>ΔE: {delta_e:.2f} {status_symbol}</div>
                     </div>
                 </div>
-                """)
+                """
+                )
         html_parts.append("</div>")
         html_parts.append("</div>")
         html_parts.append("</div>")
@@ -130,7 +158,8 @@ def update_shared_results_display(colorbar_data: list[dict]) -> str:
     html_parts.append("</div>")
 
     # --- CSS Styling ---
-    html_parts.append("""
+    html_parts.append(
+        """
     <style>
         .results-container { font-family: sans-serif; }
         .no-results, .error-text { text-align: center; color: #888; padding: 20px; }
@@ -199,6 +228,7 @@ def update_shared_results_display(colorbar_data: list[dict]) -> str:
             z-index: 100;
         }
     </style>
-    """)
+    """
+    )
 
     return "".join(html_parts)

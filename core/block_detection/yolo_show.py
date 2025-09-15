@@ -68,9 +68,9 @@ def detect_colorbars_yolo(
     # 创建标注图像
     img_with_boxes = image.copy()
 
-    boxes_list = []        # 存储检测框坐标
+    boxes_list = []  # 存储检测框坐标
     confidences_list = []  # 存储置信度分数
-    colorbar_segments = [] # 存储提取的色板片段
+    colorbar_segments = []  # 存储提取的色板片段
 
     height, width = image.shape[:2]
 
@@ -207,15 +207,15 @@ def analyze_colorbar_colors(colorbar_segment: np.ndarray) -> dict:
 
     # 计算基本统计信息
     mean_color = np.mean(pixels, axis=0)  # 平均颜色
-    std_color = np.std(pixels, axis=0)    # 颜色标准差
+    std_color = np.std(pixels, axis=0)  # 颜色标准差
 
     # 获取唯一颜色（简化版）
     unique_colors = np.unique(pixels, axis=0)
 
     return {
-        "mean_rgb": mean_color.tolist(),        # 平均RGB值
-        "std_rgb": std_color.tolist(),          # RGB标准差
-        "unique_colors_count": len(unique_colors), # 唯一颜色数量
-        "segment_shape": colorbar_segment.shape,   # 片段尺寸
-        "total_pixels": len(pixels),               # 总像素数
+        "mean_rgb": mean_color.tolist(),  # 平均RGB值
+        "std_rgb": std_color.tolist(),  # RGB标准差
+        "unique_colors_count": len(unique_colors),  # 唯一颜色数量
+        "segment_shape": colorbar_segment.shape,  # 片段尺寸
+        "total_pixels": len(pixels),  # 总像素数
     }

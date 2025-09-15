@@ -82,7 +82,7 @@ def detect_blocks(
     # 准备结果图像
     result = image.copy()
     block_images = []  # 存储检测到的块图像
-    block_count = 0    # 计数器
+    block_count = 0  # 计数器
 
     # 处理每个轮廓
     for contour in contours:

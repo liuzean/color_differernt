@@ -15,8 +15,10 @@ import numpy as np
 from PIL import Image
 
 from ..color.ground_truth_checker import ground_truth_checker
+
 # 恢复颜色条检测的导入
 from .yolo_show import detect_colorbars_yolo, load_yolo_model
+
 # 导入新的YOLO色块检测器
 from .yolo_block_detection import detect_blocks_with_yolo, load_yolo_block_model
 
@@ -82,8 +84,11 @@ def _extract_block_color_features(
     if color_block.size == 0:
         return {"error": "Empty color block"}
 
-    pure_rgb, purity_score = extract_pure_color_from_block(color_block, purity_threshold)
+    pure_rgb, purity_score = extract_pure_color_from_block(
+        color_block, purity_threshold
+    )
     from .color_analysis import rgb_to_cmyk_icc
+
     pure_cmyk = rgb_to_cmyk_icc(pure_rgb)
 
     analysis = {
@@ -122,12 +127,17 @@ def analyze_pure_color_block(
 
     analysis["ground_truth_match"] = {
         "closest_color": {
-            "id": closest_gt_color.id, "name": closest_gt_color.name,
-            "cmyk": closest_gt_color.cmyk, "rgb": closest_gt_color.rgb,
-        } if closest_gt_color else None,
+            "id": closest_gt_color.id,
+            "name": closest_gt_color.name,
+            "cmyk": closest_gt_color.cmyk,
+            "rgb": closest_gt_color.rgb,
+        }
+        if closest_gt_color
+        else None,
         "delta_e": delta_e,
         "accuracy_level": ground_truth_checker._get_accuracy_level(delta_e),
-        "is_acceptable": delta_e < 3.0, "is_excellent": delta_e < 1.0,
+        "is_acceptable": delta_e < 3.0,
+        "is_excellent": delta_e < 1.0,
     }
     return analysis
 
@@ -136,12 +146,18 @@ def _get_color_quality(purity_score: float) -> str:
     """
     根据纯度分数获取颜色质量描述。
     """
-    if purity_score >= 0.9: return "Excellent"
-    elif purity_score >= 0.8: return "Very Good"
-    elif purity_score >= 0.7: return "Good"
-    elif purity_score >= 0.6: return "Fair"
-    elif purity_score >= 0.5: return "Poor"
-    else: return "Very Poor"
+    if purity_score >= 0.9:
+        return "Excellent"
+    elif purity_score >= 0.8:
+        return "Very Good"
+    elif purity_score >= 0.7:
+        return "Good"
+    elif purity_score >= 0.6:
+        return "Fair"
+    elif purity_score >= 0.5:
+        return "Poor"
+    else:
+        return "Very Poor"
 
 
 def analyze_colorbar_with_best_card_match(
@@ -159,7 +175,10 @@ def analyze_colorbar_with_best_card_match(
     block_features, detected_rgb_colors = [], []
     for i, block in enumerate(colorbar_blocks):
         features = _extract_block_color_features(
-            block, block_id=i + 1, colorbar_id=colorbar_id, purity_threshold=purity_threshold,
+            block,
+            block_id=i + 1,
+            colorbar_id=colorbar_id,
+            purity_threshold=purity_threshold,
         )
         block_features.append(features)
         if "error" not in features:
@@ -168,7 +187,9 @@ def analyze_colorbar_with_best_card_match(
     if not detected_rgb_colors:
         return block_features, None
 
-    card_match_result = ground_truth_checker.find_best_card_for_colorbar(detected_rgb_colors)
+    card_match_result = ground_truth_checker.find_best_card_for_colorbar(
+        detected_rgb_colors
+    )
     if not card_match_result:
         return block_features, None
 
@@ -188,8 +209,10 @@ def analyze_colorbar_with_best_card_match(
             gt_color = match["closest_ground_truth"]
             features["ground_truth_match"] = {
                 "closest_color": {
-                    "id": gt_color.id, "name": gt_color.name,
-                    "cmyk": gt_color.cmyk, "rgb": gt_color.rgb,
+                    "id": gt_color.id,
+                    "name": gt_color.name,
+                    "cmyk": gt_color.cmyk,
+                    "rgb": gt_color.rgb,
                 },
                 "delta_e": match["delta_e"],
                 "accuracy_level": match["accuracy_level"],
@@ -214,7 +237,10 @@ def analyze_colorbar_pure_colors(
     analyses = []
     for i, block in enumerate(colorbar_blocks):
         analysis = analyze_pure_color_block(
-            block, block_id=i + 1, colorbar_id=colorbar_id, purity_threshold=purity_threshold,
+            block,
+            block_id=i + 1,
+            colorbar_id=colorbar_id,
+            purity_threshold=purity_threshold,
         )
         analyses.append(analysis)
     return analyses
@@ -233,7 +259,8 @@ def pure_colorbar_analysis_pipeline(
     """
     完整的基于纯色的色板分析流水线。
     """
-    if pil_image is None: return {"error": "No image provided"}
+    if pil_image is None:
+        return {"error": "No image provided"}
     try:
         print("Step 1: Detecting colorbars with YOLO (best0710.pt)...")
         model = load_yolo_model(model_path)
@@ -241,13 +268,23 @@ def pure_colorbar_analysis_pipeline(
         opencv_image = cv2.cvtColor(opencv_image, cv2.COLOR_RGB2BGR)
 
         # 重新获取完整的YOLO输出
-        (annotated_image, colorbar_boxes, confidences, colorbar_segments) = detect_colorbars_yolo(
-            opencv_image, model, box_expansion=box_expansion, confidence_threshold=confidence_threshold,
+        (
+            annotated_image,
+            colorbar_boxes,
+            confidences,
+            colorbar_segments,
+        ) = detect_colorbars_yolo(
+            opencv_image,
+            model,
+            box_expansion=box_expansion,
+            confidence_threshold=confidence_threshold,
         )
         if len(colorbar_segments) == 0:
             return {
                 "error": "No colorbars detected",
-                "annotated_image": Image.fromarray(cv2.cvtColor(annotated_image, cv2.COLOR_BGR2RGB)),
+                "annotated_image": Image.fromarray(
+                    cv2.cvtColor(annotated_image, cv2.COLOR_BGR2RGB)
+                ),
                 "step_completed": 1,
             }
         print("Step 2: Initializing YOLO block detector (best.pt)...")
@@ -255,30 +292,48 @@ def pure_colorbar_analysis_pipeline(
             block_model = load_yolo_block_model()
         except (FileNotFoundError, RuntimeError) as e:
             return {"error": str(e)}
-        
+
         colorbar_results = []
         # 使用完整的YOLO输出进行迭代
-        for i, (segment, confidence, box) in enumerate(zip(colorbar_segments, confidences, colorbar_boxes, strict=False)):
+        for i, (segment, confidence, box) in enumerate(
+            zip(colorbar_segments, confidences, colorbar_boxes, strict=False)
+        ):
             colorbar_id = i + 1
             print(f"  Processing colorbar {colorbar_id}/{len(colorbar_segments)}...")
             (segmented_colorbar, color_blocks, block_count) = detect_blocks_with_yolo(
-                segment, block_model, confidence_threshold=yolo_block_confidence, min_area=block_area_threshold,
+                segment,
+                block_model,
+                confidence_threshold=yolo_block_confidence,
+                min_area=block_area_threshold,
             )
             print(f"  Analyzing {block_count} pure colors in colorbar {colorbar_id}...")
             pure_color_analyses, best_match_card_id = [], None
             if block_count > 0:
-                (pure_color_analyses, best_match_card_id) = analyze_colorbar_with_best_card_match(
-                    color_blocks, colorbar_id=colorbar_id, purity_threshold=purity_threshold,
+                (
+                    pure_color_analyses,
+                    best_match_card_id,
+                ) = analyze_colorbar_with_best_card_match(
+                    color_blocks,
+                    colorbar_id=colorbar_id,
+                    purity_threshold=purity_threshold,
                 )
             colorbar_result = {
-                "colorbar_id": colorbar_id, "confidence": confidence, "bounding_box": box,
-                "original_segment_pil": Image.fromarray(cv2.cvtColor(segment, cv2.COLOR_BGR2RGB)),
-                "segmented_colorbar_pil": Image.fromarray(cv2.cvtColor(segmented_colorbar, cv2.COLOR_BGR2RGB)),
-                "color_blocks": color_blocks, "block_count": block_count,
-                "pure_color_analyses": pure_color_analyses, "best_match_card_id": best_match_card_id,
+                "colorbar_id": colorbar_id,
+                "confidence": confidence,
+                "bounding_box": box,
+                "original_segment_pil": Image.fromarray(
+                    cv2.cvtColor(segment, cv2.COLOR_BGR2RGB)
+                ),
+                "segmented_colorbar_pil": Image.fromarray(
+                    cv2.cvtColor(segmented_colorbar, cv2.COLOR_BGR2RGB)
+                ),
+                "color_blocks": color_blocks,
+                "block_count": block_count,
+                "pure_color_analyses": pure_color_analyses,
+                "best_match_card_id": best_match_card_id,
             }
             colorbar_results.append(colorbar_result)
-            
+
         total_blocks = sum(result["block_count"] for result in colorbar_results)
         all_delta_e_values = []
         excellent_count, acceptable_count, high_purity_count = 0, 0, 0
@@ -288,35 +343,56 @@ def pure_colorbar_analysis_pipeline(
                     gt_match = analysis["ground_truth_match"]
                     delta_e = gt_match["delta_e"]
                     all_delta_e_values.append(delta_e)
-                    if gt_match.get("is_excellent", False): excellent_count += 1
-                    if gt_match.get("is_acceptable", False): acceptable_count += 1
-                    if analysis["purity_score"] >= 0.8: high_purity_count += 1
-        
+                    if gt_match.get("is_excellent", False):
+                        excellent_count += 1
+                    if gt_match.get("is_acceptable", False):
+                        acceptable_count += 1
+                    if analysis["purity_score"] >= 0.8:
+                        high_purity_count += 1
+
         accuracy_stats = {}
         if all_delta_e_values:
             import statistics
+
             total_analyzed = len(all_delta_e_values)
             accuracy_stats = {
                 "average_delta_e": statistics.mean(all_delta_e_values),
                 "median_delta_e": statistics.median(all_delta_e_values),
-                "max_delta_e": max(all_delta_e_values), "min_delta_e": min(all_delta_e_values),
-                "excellent_colors": excellent_count, "acceptable_colors": acceptable_count,
-                "high_purity_colors": high_purity_count, "total_analyzed": total_analyzed,
-                "excellent_percentage": (excellent_count / total_analyzed) * 100 if total_analyzed > 0 else 0,
-                "acceptable_percentage": (acceptable_count / total_analyzed) * 100 if total_analyzed > 0 else 0,
-                "high_purity_percentage": (high_purity_count / total_analyzed) * 100 if total_analyzed > 0 else 0,
+                "max_delta_e": max(all_delta_e_values),
+                "min_delta_e": min(all_delta_e_values),
+                "excellent_colors": excellent_count,
+                "acceptable_colors": acceptable_count,
+                "high_purity_colors": high_purity_count,
+                "total_analyzed": total_analyzed,
+                "excellent_percentage": (excellent_count / total_analyzed) * 100
+                if total_analyzed > 0
+                else 0,
+                "acceptable_percentage": (acceptable_count / total_analyzed) * 100
+                if total_analyzed > 0
+                else 0,
+                "high_purity_percentage": (high_purity_count / total_analyzed) * 100
+                if total_analyzed > 0
+                else 0,
             }
-        
+
         return {
-            "success": True, "analysis_type": "direct_yolo_block_detection",
-            "annotated_image": annotated_image, "colorbar_count": len(colorbar_results),
-            "colorbar_results": colorbar_results, "total_blocks": total_blocks,
-            "accuracy_statistics": accuracy_stats, "step_completed": 3,
+            "success": True,
+            "analysis_type": "direct_yolo_block_detection",
+            "annotated_image": annotated_image,
+            "colorbar_count": len(colorbar_results),
+            "colorbar_results": colorbar_results,
+            "total_blocks": total_blocks,
+            "accuracy_statistics": accuracy_stats,
+            "step_completed": 3,
         }
     except Exception as e:
         import traceback
+
         traceback.print_exc()
-        return {"error": f"Error in pure colorbar analysis pipeline: {str(e)}", "step_completed": 0}
+        return {
+            "error": f"Error in pure colorbar analysis pipeline: {str(e)}",
+            "step_completed": 0,
+        }
 
 
 def pure_colorbar_analysis_for_gradio(
@@ -332,8 +408,11 @@ def pure_colorbar_analysis_for_gradio(
     为Gradio界面优化的纯色色板分析流水线包装器。
     """
     result = pure_colorbar_analysis_pipeline(
-        pil_image, confidence_threshold=confidence_threshold, box_expansion=box_expansion,
-        yolo_block_confidence=yolo_block_confidence, block_area_threshold=block_area_threshold,
+        pil_image,
+        confidence_threshold=confidence_threshold,
+        box_expansion=box_expansion,
+        yolo_block_confidence=yolo_block_confidence,
+        block_area_threshold=block_area_threshold,
         purity_threshold=purity_threshold,
     )
     if "error" in result:
@@ -341,7 +420,9 @@ def pure_colorbar_analysis_for_gradio(
     if not result.get("success", False):
         return pil_image, [], "❌ Pure color analysis failed", 0
 
-    annotated_pil = Image.fromarray(cv2.cvtColor(result["annotated_image"], cv2.COLOR_BGR2RGB))
+    annotated_pil = Image.fromarray(
+        cv2.cvtColor(result["annotated_image"], cv2.COLOR_BGR2RGB)
+    )
     colorbar_data = result.get("colorbar_results", [])
 
     report = "🎯 YOLO Direct Block Analysis Results\n" + "=" * 55 + "\n\n"
@@ -355,7 +436,6 @@ def pure_colorbar_analysis_for_gradio(
         else:
             # This case might happen if 0 blocks were detected in a colorbar segment
             report += f"🎨 Colorbar #{i+1} - No blocks detected or no match found.\n"
-
 
     report += "\n📊 Overall Summary:\n"
     report += f"  • Total color blocks found: {result['total_blocks']}\n"
@@ -377,10 +457,11 @@ def pure_colorbar_analysis_for_gradio(
             continue
         if res["block_count"] > 0:
             for analysis in res["pure_color_analyses"]:
-                if "error" in analysis: continue
+                if "error" in analysis:
+                    continue
                 block_id = analysis.get("block_id", "?")
-                rgb = analysis.get("pure_color_rgb", (0,0,0))
-                cmyk = analysis.get("pure_color_cmyk", (0,0,0,0))
+                rgb = analysis.get("pure_color_rgb", (0, 0, 0))
+                cmyk = analysis.get("pure_color_cmyk", (0, 0, 0, 0))
                 purity = analysis.get("purity_score", 0)
                 quality = analysis.get("color_quality", "N/A")
                 hex_code = f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
@@ -389,11 +470,20 @@ def pure_colorbar_analysis_for_gradio(
                 if "ground_truth_match" in analysis:
                     gt = analysis["ground_truth_match"]
                     if gt and gt.get("closest_color"):
-                        delta_e, level, gt_color = gt["delta_e"], gt["accuracy_level"], gt["closest_color"]
-                        report += f" | ΔE: {delta_e:.2f} ({level}) vs {gt_color['name']}"
-                        if gt.get("is_excellent", False): report += " ✅"
-                        elif gt.get("is_acceptable", False): report += " ⚠️"
-                        else: report += " ❌"
+                        delta_e, level, gt_color = (
+                            gt["delta_e"],
+                            gt["accuracy_level"],
+                            gt["closest_color"],
+                        )
+                        report += (
+                            f" | ΔE: {delta_e:.2f} ({level}) vs {gt_color['name']}"
+                        )
+                        if gt.get("is_excellent", False):
+                            report += " ✅"
+                        elif gt.get("is_acceptable", False):
+                            report += " ⚠️"
+                        else:
+                            report += " ❌"
                 report += "\n"
         report += "\n"
     # The return signature for gradio needs image, data, string, int

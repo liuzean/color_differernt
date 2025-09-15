@@ -31,7 +31,7 @@ def process_pure_colorbar_analysis(
 
     流程：
     1. YOLO检测颜色条区域 (best0710.pt)
-    2. YOLO检测色块 (best.pt)  
+    2. YOLO检测色块 (best.pt)
     3. 纯色分析
 
     返回:
@@ -44,9 +44,9 @@ def process_pure_colorbar_analysis(
         # 运行双YOLO纯色颜色条分析
         (
             annotated_image,  # 标注后的图像
-            colorbar_data,    # 颜色条数据
+            colorbar_data,  # 颜色条数据
             analysis_report,  # 分析报告
-            total_blocks,     # 总色块数
+            total_blocks,  # 总色块数
         ) = pure_colorbar_analysis_for_gradio(
             input_image,
             confidence_threshold=confidence_threshold,
@@ -65,7 +65,9 @@ def process_pure_colorbar_analysis(
         # 创建专注于纯色的增强HTML显示
         results_html = create_pure_colorbar_display(colorbar_data)
 
-        status = f"✅ 双YOLO分析完成: {len(colorbar_data)} 个颜色条, {total_blocks} 个色块"
+        status = (
+            f"✅ 双YOLO分析完成: {len(colorbar_data)} 个颜色条, {total_blocks} 个色块"
+        )
 
         return annotated_image, status, results_html
 
@@ -117,11 +119,11 @@ def create_pure_colorbar_display(colorbar_data: list[dict]) -> str:
     """
 
     # 计算总体统计数据
-    total_blocks = 0          # 总色块数
-    excellent_count = 0       # 优秀级别色块数
-    acceptable_count = 0      # 可接受级别色块数
-    high_purity_count = 0     # 高纯度色块数
-    all_delta_e = []         # 所有Delta E值
+    total_blocks = 0  # 总色块数
+    excellent_count = 0  # 优秀级别色块数
+    acceptable_count = 0  # 可接受级别色块数
+    high_purity_count = 0  # 高纯度色块数
+    all_delta_e = []  # 所有Delta E值
 
     # 遍历所有颜色条数据统计信息
     for colorbar in colorbar_data:
@@ -168,12 +170,14 @@ def create_pure_colorbar_display(colorbar_data: list[dict]) -> str:
 
     # 遍历每个颜色条，生成详细显示
     for colorbar in colorbar_data:
-        colorbar_id = colorbar.get("colorbar_id", "?")               # 颜色条ID
-        confidence = colorbar.get("confidence", 0)                   # 检测置信度
-        block_count = colorbar.get("block_count", 0)                 # 色块数量
-        original_colorbar = colorbar.get("original_segment_pil")     # 原始颜色条图像
-        segmented_colorbar = colorbar.get("segmented_colorbar_pil")  # 分割后的颜色条图像
-        pure_color_analyses = colorbar.get("pure_color_analyses", []) # 纯色分析结果
+        colorbar_id = colorbar.get("colorbar_id", "?")  # 颜色条ID
+        confidence = colorbar.get("confidence", 0)  # 检测置信度
+        block_count = colorbar.get("block_count", 0)  # 色块数量
+        original_colorbar = colorbar.get("original_segment_pil")  # 原始颜色条图像
+        segmented_colorbar = colorbar.get(
+            "segmented_colorbar_pil"
+        )  # 分割后的颜色条图像
+        pure_color_analyses = colorbar.get("pure_color_analyses", [])  # 纯色分析结果
 
         html += f"""
         <div class="pure-colorbar-container">
@@ -227,30 +231,30 @@ def create_pure_colorbar_display(colorbar_data: list[dict]) -> str:
                 if "error" in analysis:  # 跳过有错误的分析结果
                     continue
 
-                block_id = analysis.get("block_id", "?")                    # 色块ID
-                pure_rgb = analysis.get("pure_color_rgb", (0, 0, 0))        # RGB值
-                pure_cmyk = analysis.get("pure_color_cmyk", (0, 0, 0, 0))   # CMYK值
-                purity_score = analysis.get("purity_score", 0.0)            # 纯度分数
-                color_quality = analysis.get("color_quality", "Unknown")    # 颜色质量
-                gt_match = analysis.get("ground_truth_match", {})           # 真值匹配结果
+                block_id = analysis.get("block_id", "?")  # 色块ID
+                pure_rgb = analysis.get("pure_color_rgb", (0, 0, 0))  # RGB值
+                pure_cmyk = analysis.get("pure_color_cmyk", (0, 0, 0, 0))  # CMYK值
+                purity_score = analysis.get("purity_score", 0.0)  # 纯度分数
+                color_quality = analysis.get("color_quality", "Unknown")  # 颜色质量
+                gt_match = analysis.get("ground_truth_match", {})  # 真值匹配结果
 
                 # 根据性能确定色块样式
                 block_class = "pure-color-block"
                 if gt_match.get("is_excellent"):
-                    block_class += " excellent"     # 优秀
+                    block_class += " excellent"  # 优秀
                 elif gt_match.get("is_acceptable"):
-                    block_class += " acceptable"    # 可接受
+                    block_class += " acceptable"  # 可接受
                 else:
-                    block_class += " poor"          # 较差
+                    block_class += " poor"  # 较差
 
                 # 确定纯度样式
                 purity_class = "purity-info"
                 if purity_score >= 0.8:
-                    purity_class += " high"         # 高纯度
+                    purity_class += " high"  # 高纯度
                 elif purity_score >= 0.6:
-                    purity_class += " medium"       # 中等纯度
+                    purity_class += " medium"  # 中等纯度
                 else:
-                    purity_class += " low"          # 低纯度
+                    purity_class += " low"  # 低纯度
 
                 # 颜色预览样式
                 color_style = f"background-color: rgb({pure_rgb[0]}, {pure_rgb[1]}, {pure_rgb[2]});"
@@ -272,22 +276,24 @@ def create_pure_colorbar_display(colorbar_data: list[dict]) -> str:
 
                 # 真值比较结果
                 if gt_match.get("closest_color"):
-                    delta_e = gt_match.get("delta_e", 0)                    # Delta E值
-                    accuracy_level = gt_match.get("accuracy_level", "Unknown") # 准确度级别
-                    gt_color = gt_match["closest_color"]                    # 最接近的真值颜色
+                    delta_e = gt_match.get("delta_e", 0)  # Delta E值
+                    accuracy_level = gt_match.get(
+                        "accuracy_level", "Unknown"
+                    )  # 准确度级别
+                    gt_color = gt_match["closest_color"]  # 最接近的真值颜色
 
                     # Delta E样式设置
                     delta_e_class = "delta-e-info"
                     status_icon = ""
                     if gt_match.get("is_excellent"):
                         delta_e_class += " excellent"
-                        status_icon = "✅"          # 优秀
+                        status_icon = "✅"  # 优秀
                     elif gt_match.get("is_acceptable"):
                         delta_e_class += " good"
-                        status_icon = "⚠️"          # 良好
+                        status_icon = "⚠️"  # 良好
                     else:
                         delta_e_class += " poor"
-                        status_icon = "❌"          # 较差
+                        status_icon = "❌"  # 较差
 
                     html += f"""
                         <div class="{delta_e_class}">
@@ -320,14 +326,12 @@ def create_pure_colorbar_analysis_interface():
             gr.Markdown(
                 "上传包含颜色条的图像进行**双YOLO模型分析**：\n"
                 "- **第一步**: YOLO检测颜色条区域 (best0710.pt)\n"
-                "- **第二步**: YOLO检测色块 (best.pt)\n"  
+                "- **第二步**: YOLO检测色块 (best.pt)\n"
                 "- **第三步**: 精确的**CMYK匹配**和**delta E计算**"
             )
 
             # 图像上传组件
-            input_image = gr.Image(
-                label="📷 上传颜色条图像", type="pil", scale=2
-            )
+            input_image = gr.Image(label="📷 上传颜色条图像", type="pil", scale=2)
 
             # 参数设置折叠面板
             with gr.Accordion("🔧 双YOLO检测设置", open=False):
@@ -382,9 +386,7 @@ def create_pure_colorbar_analysis_interface():
 
             # 操作按钮
             with gr.Row():
-                analyze_btn = gr.Button(
-                    "🚀 双YOLO分析", variant="primary", scale=2
-                )
+                analyze_btn = gr.Button("🚀 双YOLO分析", variant="primary", scale=2)
                 clear_btn = gr.Button("🗑️ 清除", scale=1)
 
         with gr.Column():
@@ -413,19 +415,13 @@ def create_pure_colorbar_analysis_interface():
                 show_yaml_btn = gr.Button("📝 显示YAML配置")
 
             # 参考图表显示
-            reference_chart = gr.Image(
-                label="真值参考图表", visible=False
-            )
+            reference_chart = gr.Image(label="真值参考图表", visible=False)
 
             # YAML配置显示
-            yaml_config = gr.Code(
-                label="真值YAML配置", language="yaml", visible=False
-            )
+            yaml_config = gr.Code(label="真值YAML配置", language="yaml", visible=False)
 
     # 事件处理函数定义
-    def run_analysis(
-        img, conf, box_exp, block_conf, min_area, purity_thresh
-    ):
+    def run_analysis(img, conf, box_exp, block_conf, min_area, purity_thresh):
         """运行双YOLO分析的事件处理函数"""
         if img is None:
             return None, "❌ 请上传图像", ""

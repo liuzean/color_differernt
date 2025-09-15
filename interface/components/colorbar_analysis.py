@@ -49,7 +49,7 @@ def process_colorbar_analysis(
             input_image,
             confidence_threshold=confidence_threshold,
             box_expansion=box_expansion,
-            yolo_block_confidence=yolo_block_confidence, # 新增YOLO色块置信度
+            yolo_block_confidence=yolo_block_confidence,  # 新增YOLO色块置信度
             block_area_threshold=block_area_threshold,  # 保留最小面积作为过滤条件
             purity_threshold=purity_threshold,
         )
@@ -67,6 +67,7 @@ def process_colorbar_analysis(
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         error_msg = f"❌ Error during colorbar analysis: {str(e)}"
         return input_image, error_msg, ""
@@ -89,7 +90,7 @@ def create_colorbar_analysis_ui():
                             0.1, 1.0, 0.5, step=0.05, label="Confidence"
                         )
                         box_expansion = gr.Slider(0, 50, 10, step=1, label="Expansion")
-                    
+
                     gr.Markdown("Block Detection (YOLO)")
                     with gr.Row():
                         # [修改] 替换旧滑块为新的YOLO色块置信度滑块
@@ -99,13 +100,12 @@ def create_colorbar_analysis_ui():
                         block_area_threshold = gr.Slider(
                             10, 200, 50, step=5, label="Min Area"
                         )
-                    
+
                     gr.Markdown("Color Analysis")
                     with gr.Row():
                         purity_threshold = gr.Slider(
                             0.5, 1.0, 0.8, step=0.05, label="Purity"
                         )
-
 
                 # Compact buttons
                 with gr.Row():
@@ -131,7 +131,7 @@ def create_colorbar_analysis_ui():
         image,
         conf_thresh,
         box_exp,
-        yolo_block_conf, # 新参数
+        yolo_block_conf,  # 新参数
         block_area,
         purity_thresh,
     ):
@@ -139,7 +139,7 @@ def create_colorbar_analysis_ui():
             image,
             confidence_threshold=conf_thresh,
             box_expansion=box_exp,
-            yolo_block_confidence=yolo_block_conf, # 传递新参数
+            yolo_block_confidence=yolo_block_conf,  # 传递新参数
             block_area_threshold=block_area,
             purity_threshold=purity_thresh,
         )
@@ -186,7 +186,7 @@ def create_colorbar_analysis_ui():
         results_display,
         confidence_threshold,
         box_expansion,
-        yolo_block_confidence, # 新增
+        yolo_block_confidence,  # 新增
         block_area_threshold,
         purity_threshold,
         analyze_btn,

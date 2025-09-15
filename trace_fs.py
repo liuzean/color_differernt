@@ -9,6 +9,7 @@ print(f"监控临时目录: {temp_dir}")
 # ---- Hook pathlib.Path.mkdir ----
 _old_path_mkdir = Path.mkdir
 
+
 def debug_path_mkdir(self, *args, **kwargs):
     try:
         if str(self).startswith(temp_dir):
@@ -18,10 +19,12 @@ def debug_path_mkdir(self, *args, **kwargs):
         print(f"debug_path_mkdir hook 错误: {e}")
     return _old_path_mkdir(self, *args, **kwargs)
 
+
 Path.mkdir = debug_path_mkdir
 
 # ---- Hook open ----
 _old_open = builtins.open
+
 
 def debug_open(file, mode="r", *args, **kwargs):
     try:
@@ -32,5 +35,6 @@ def debug_open(file, mode="r", *args, **kwargs):
     except Exception as e:
         print(f"debug_open hook 错误: {e}")
     return _old_open(file, mode, *args, **kwargs)
+
 
 builtins.open = debug_open

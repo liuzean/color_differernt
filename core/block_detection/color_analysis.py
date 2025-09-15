@@ -74,20 +74,26 @@ def rgb_to_cmyk_simple(rgb_tuple: tuple[int, int, int]) -> tuple[int, int, int, 
     return (int(c * 100), int(m * 100), int(y * 100), int(k * 100))
 
 
-def shrink_image(image: np.ndarray, target_size: tuple[int, int] = (50, 50)) -> np.ndarray:
+def shrink_image(
+    image: np.ndarray, target_size: tuple[int, int] = (50, 50)
+) -> np.ndarray:
     """
     将输入图像缩小到指定尺寸，用于后续颜色分析。
     """
     return cv2.resize(image, target_size, interpolation=cv2.INTER_AREA)
 
 
-def get_dominant_colors(image: np.ndarray, k: int = 5, image_processing_size: tuple[int, int] = (25, 25)) -> list[tuple[tuple[int, int, int], float]]:
+def get_dominant_colors(
+    image: np.ndarray, k: int = 5, image_processing_size: tuple[int, int] = (25, 25)
+) -> list[tuple[tuple[int, int, int], float]]:
     """
     提取图像的主要颜色（K-Means聚类）。
     返回结果：[(RGB颜色, 占比), ...]
     """
     # 缩小图像以加速聚类
-    image_resized = cv2.resize(image, image_processing_size, interpolation=cv2.INTER_AREA)
+    image_resized = cv2.resize(
+        image, image_processing_size, interpolation=cv2.INTER_AREA
+    )
 
     # 转换为RGB
     image_rgb = cv2.cvtColor(image_resized, cv2.COLOR_BGR2RGB)
@@ -120,7 +126,12 @@ def get_dominant_colors(image: np.ndarray, k: int = 5, image_processing_size: tu
     return color_percentages
 
 
-def analyze_single_block_color(block_image: np.ndarray, shrink_size: tuple[int, int] = (30, 30), colorbar_id: int = None, block_id: int = None) -> dict:
+def analyze_single_block_color(
+    block_image: np.ndarray,
+    shrink_size: tuple[int, int] = (30, 30),
+    colorbar_id: int = None,
+    block_id: int = None,
+) -> dict:
     """
     分析单个色块，输出全面的颜色特征（RGB、CMYK、HSV、主要颜色、均匀性等）。
     """
@@ -134,15 +145,23 @@ def analyze_single_block_color(block_image: np.ndarray, shrink_size: tuple[int, 
     rgb_image = cv2.cvtColor(shrunken, cv2.COLOR_BGR2RGB)
 
     # 提取主色（前三个）
-    dominant_colors = get_dominant_colors(block_image, k=3, image_processing_size=shrink_size)
+    dominant_colors = get_dominant_colors(
+        block_image, k=3, image_processing_size=shrink_size
+    )
 
     # 计算平均颜色
     avg_color_bgr = np.mean(shrunken.reshape(-1, 3), axis=0)
     avg_color_rgb = avg_color_bgr[::-1]
 
     # 转换为HSV
-    avg_color_hsv = colorsys.rgb_to_hsv(avg_color_rgb[0] / 255, avg_color_rgb[1] / 255, avg_color_rgb[2] / 255)
-    avg_color_hsv = (int(avg_color_hsv[0] * 360), int(avg_color_hsv[1] * 100), int(avg_color_hsv[2] * 100))
+    avg_color_hsv = colorsys.rgb_to_hsv(
+        avg_color_rgb[0] / 255, avg_color_rgb[1] / 255, avg_color_rgb[2] / 255
+    )
+    avg_color_hsv = (
+        int(avg_color_hsv[0] * 360),
+        int(avg_color_hsv[1] * 100),
+        int(avg_color_hsv[2] * 100),
+    )
 
     # 计算颜色方差与标准差（判断颜色是否均匀）
     color_variance = np.var(rgb_image.reshape(-1, 3), axis=0)
@@ -235,12 +254,18 @@ def format_color_analysis_report(analysis: dict, block_identifier: str = None) -
     return report
 
 
-def analyze_colorbar_blocks(colorbar_blocks: list[np.ndarray], shrink_size: tuple[int, int] = (30, 30), colorbar_id: int = None) -> list[dict]:
+def analyze_colorbar_blocks(
+    colorbar_blocks: list[np.ndarray],
+    shrink_size: tuple[int, int] = (30, 30),
+    colorbar_id: int = None,
+) -> list[dict]:
     """
     批量分析一个颜色条中的多个色块。
     """
     analyses = []
     for i, block in enumerate(colorbar_blocks):
-        analysis = analyze_single_block_color(block, shrink_size, colorbar_id=colorbar_id, block_id=i + 1)
+        analysis = analyze_single_block_color(
+            block, shrink_size, colorbar_id=colorbar_id, block_id=i + 1
+        )
         analyses.append(analysis)
     return analyses

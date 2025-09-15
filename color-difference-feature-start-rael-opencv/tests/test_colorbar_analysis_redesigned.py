@@ -178,7 +178,16 @@ class TestGroundTruthColorChecker:
 
         # Check CMYK range
         cmyk_range = stats["cmyk_range"]
-        for component in ["c_min", "c_max", "m_min", "m_max", "y_min", "y_max", "k_min", "k_max"]:
+        for component in [
+            "c_min",
+            "c_max",
+            "m_min",
+            "m_max",
+            "y_min",
+            "y_max",
+            "k_min",
+            "k_max",
+        ]:
             assert component in cmyk_range
             assert isinstance(cmyk_range[component], (int, float))
 
@@ -192,7 +201,9 @@ class TestGroundTruthColorChecker:
 class TestColorbarAnalysisUtils:
     """Test colorbar analysis utility functions"""
 
-    def create_test_colorbar_image(self, colors: list[tuple[int, int, int]], size: tuple[int, int] = (200, 50)):
+    def create_test_colorbar_image(
+        self, colors: list[tuple[int, int, int]], size: tuple[int, int] = (200, 50)
+    ):
         """Create a test colorbar image with specified colors"""
         width, height = size
         colors_count = len(colors)
@@ -308,7 +319,7 @@ class TestColorbarAnalysisPipeline:
         for i, color in enumerate(colors):
             x_start = start_x + i * color_width
             x_end = x_start + color_width
-            image[start_y:start_y + colorbar_height, x_start:x_end] = color
+            image[start_y : start_y + colorbar_height, x_start:x_end] = color
 
         return image
 
@@ -455,7 +466,10 @@ class TestColorbarAnalysisIntegration:
         # Test with known color pairs
         test_pairs = [
             ((255, 0, 0), (255, 0, 0)),  # Same color - should have delta E = 0
-            ((255, 0, 0), (0, 255, 0)),  # Very different colors - should have high delta E
+            (
+                (255, 0, 0),
+                (0, 255, 0),
+            ),  # Very different colors - should have high delta E
             ((255, 0, 0), (254, 1, 1)),  # Very similar colors - should have low delta E
         ]
 

@@ -47,6 +47,7 @@ def test_color_space_conversions():
 
     # Test LAB to RGB conversion using colour library
     import colour
+
     lab_normalized = lab_img.astype(np.float64)
     xyz_img = colour.Lab_to_XYZ(lab_normalized)
     rgb_back = colour.XYZ_to_sRGB(xyz_img)
@@ -96,9 +97,7 @@ def test_delta_e_calculations(test_images):
     sample_img = test_images["sample"]
 
     # Test CIEDE2000 method
-    avg_delta_e, delta_e = calculate_color_difference(
-        ref_img, sample_img
-    )
+    avg_delta_e, delta_e = calculate_color_difference(ref_img, sample_img)
     assert delta_e.shape == (100, 100)
 
     # The red squares should have a nonzero delta E

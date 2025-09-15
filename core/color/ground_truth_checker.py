@@ -153,6 +153,7 @@ standard_cards_data = {
 @dataclass
 class GroundTruthColor:
     """Represents a standard ground truth color."""
+
     id: str
     name: str
     cmyk: tuple[int, int, int, int]
@@ -166,7 +167,9 @@ class GroundTruthChecker:
 
     def __init__(self):
         self.standard_cards = self._create_standard_color_cards()
-        self.standard_colors: list[GroundTruthColor] = self.standard_cards.get("card_001", [])
+        self.standard_colors: list[GroundTruthColor] = self.standard_cards.get(
+            "card_001", []
+        )
 
     def _create_standard_color_cards(self) -> dict[str, list[GroundTruthColor]]:
         """Loads all standard color cards from the predefined data."""
@@ -176,8 +179,8 @@ class GroundTruthChecker:
             for color_info in card_data["colors"]:
                 cmyk = color_info["cmyk"]
                 position = color_info["position"]
-                
-                cmyk_norm = np.array([c/100.0 for c in cmyk]).reshape(1, 1, 4)
+
+                cmyk_norm = np.array([c / 100.0 for c in cmyk]).reshape(1, 1, 4)
                 rgb_array = cmyk_to_rgb(cmyk_norm)
                 rgb = tuple(rgb_array[0, 0])
 
@@ -218,32 +221,32 @@ class GroundTruthChecker:
         standard_colors: list[GroundTruthColor],
     ) -> float:
         """Calculates the total deltaE sum based on the number of detected colors."""
-        
+
         n_detected = len(detected_colors_rgb)
-        
+
         # Case 1: More than 7 blocks detected -> Invalid
         if n_detected > 7:
-            return float("inf") # Return infinity to mark as invalid
+            return float("inf")  # Return infinity to mark as invalid
 
         # Case 2: Exactly 7 blocks detected -> Try forward and reverse matching
         if n_detected == 7:
             total_delta_e_forward = 0
             total_delta_e_reverse = 0
-            
+
             sorted_standard = sorted(standard_colors, key=lambda c: c.position)
-            
+
             for i in range(7):
                 # Forward match
                 img1 = np.array([[detected_colors_rgb[i]]], dtype=np.uint8)
                 img2_fwd = np.array([[sorted_standard[i].rgb]], dtype=np.uint8)
                 delta_e_fwd, _ = calculate_color_difference(img1, img2_fwd)
                 total_delta_e_forward += delta_e_fwd
-                
+
                 # Reverse match
                 img2_rev = np.array([[sorted_standard[6 - i].rgb]], dtype=np.uint8)
                 delta_e_rev, _ = calculate_color_difference(img1, img2_rev)
                 total_delta_e_reverse += delta_e_rev
-            
+
             return min(total_delta_e_forward, total_delta_e_reverse)
 
         # Case 3: Less than 7 blocks detected -> Find best match for each
@@ -252,17 +255,17 @@ class GroundTruthChecker:
             for detected_rgb in detected_colors_rgb:
                 min_delta_e_for_block = float("inf")
                 img1 = np.array([[detected_rgb]], dtype=np.uint8)
-                
+
                 for gt_color in standard_colors:
                     img2 = np.array([[gt_color.rgb]], dtype=np.uint8)
                     delta_e, _ = calculate_color_difference(img1, img2)
                     if delta_e < min_delta_e_for_block:
                         min_delta_e_for_block = delta_e
-                
+
                 total_delta_e += min_delta_e_for_block
             return total_delta_e
-            
-        return float("inf") # Should not be reached
+
+        return float("inf")  # Should not be reached
 
     # 原函数名: find_best_card_for_colorbar
     def find_best_card_for_colorbar_new(
@@ -274,7 +277,7 @@ class GroundTruthChecker:
         """
         if not detected_colors_rgb:
             return None
-        
+
         # If more than 7 colors are detected, return a specific status
         if len(detected_colors_rgb) > 7:
             return {"best_card_id": "INVALID_DETECTION", "results": []}
@@ -284,15 +287,17 @@ class GroundTruthChecker:
             card_scores[card_id] = self._calculate_total_delta_e(
                 detected_colors_rgb, standard_colors
             )
-        
+
         if not card_scores:
             return None
 
         # Find the card with the minimum total delta E
         best_card_id = min(card_scores, key=card_scores.get)
-        
+
         # --- Generate final detailed results based on the best card ---
-        best_card_colors = sorted(self.standard_cards[best_card_id], key=lambda c: c.position)
+        best_card_colors = sorted(
+            self.standard_cards[best_card_id], key=lambda c: c.position
+        )
         results = []
 
         # If exactly 7, we need to determine if forward or reverse was better to report correctly
@@ -304,25 +309,29 @@ class GroundTruthChecker:
                 img2_fwd = np.array([[best_card_colors[i].rgb]], dtype=np.uint8)
                 delta_fwd, _ = calculate_color_difference(img1, img2_fwd)
                 total_fwd += delta_fwd
-                
+
                 img2_rev = np.array([[best_card_colors[6 - i].rgb]], dtype=np.uint8)
                 delta_rev, _ = calculate_color_difference(img1, img2_rev)
                 total_rev += delta_rev
 
             is_reverse_match = total_rev < total_fwd
-            
+
             for i in range(7):
-                gt_color = best_card_colors[6 - i] if is_reverse_match else best_card_colors[i]
+                gt_color = (
+                    best_card_colors[6 - i] if is_reverse_match else best_card_colors[i]
+                )
                 img1 = np.array([[detected_colors_rgb[i]]], dtype=np.uint8)
                 img2 = np.array([[gt_color.rgb]], dtype=np.uint8)
                 delta_e, _ = calculate_color_difference(img1, img2)
-                results.append({
-                    "detected_rgb": detected_colors_rgb[i],
-                    "closest_ground_truth": gt_color,
-                    "delta_e": delta_e,
-                    "accuracy_level": self._get_accuracy_level(delta_e),
-                })
-        
+                results.append(
+                    {
+                        "detected_rgb": detected_colors_rgb[i],
+                        "closest_ground_truth": gt_color,
+                        "delta_e": delta_e,
+                        "accuracy_level": self._get_accuracy_level(delta_e),
+                    }
+                )
+
         # If less than 7, find the best match for each individually against the best card
         elif len(detected_colors_rgb) < 7:
             for detected_rgb in detected_colors_rgb:
@@ -336,16 +345,18 @@ class GroundTruthChecker:
                     if delta_e < min_delta_e:
                         min_delta_e = delta_e
                         best_gt_color = gt_color
-                
-                results.append({
-                    "detected_rgb": detected_rgb,
-                    "closest_ground_truth": best_gt_color,
-                    "delta_e": min_delta_e,
-                    "accuracy_level": self._get_accuracy_level(min_delta_e),
-                })
+
+                results.append(
+                    {
+                        "detected_rgb": detected_rgb,
+                        "closest_ground_truth": best_gt_color,
+                        "delta_e": min_delta_e,
+                        "accuracy_level": self._get_accuracy_level(min_delta_e),
+                    }
+                )
 
         return {"best_card_id": best_card_id, "results": results}
-    
+
     # 保留旧函数以兼容
     find_best_card_for_colorbar = find_best_card_for_colorbar_new
 
@@ -366,6 +377,7 @@ class GroundTruthChecker:
                 min_delta_e = delta_e
                 closest_color = gt_color
         return closest_color, min_delta_e
+
 
 # Singleton instance for easy access across the application
 ground_truth_checker = GroundTruthChecker()
