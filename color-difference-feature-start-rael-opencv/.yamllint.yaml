@@ -1,0 +1,55 @@
+# YAML Linting Configuration
+# See https://yamllint.readthedocs.io/en/stable/configuration.html
+extends: default
+
+rules:
+  # Allow longer lines (especially for URLs and descriptions)
+  line-length:
+    max: 120
+    level: warning
+
+  # Allow more indentation for better readability
+  indentation:
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false
+
+  # Be more relaxed about comments
+  comments:
+    min-spaces-from-content: 1
+    require-starting-space: true
+
+  # Allow empty values (useful for placeholders)
+  empty-values:
+    forbid-in-block-mappings: false
+    forbid-in-flow-mappings: true
+
+  # Allow truthy values (useful for boolean configurations)
+  truthy:
+    allowed-values: ['true', 'false', 'yes', 'no', 'on', 'off']
+    check-keys: false
+
+  # Allow document start markers
+  document-start:
+    present: false
+
+  # Be more flexible with brackets
+  brackets:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+  # Be more flexible with braces
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+# Ignore certain files and patterns
+ignore: |
+  .github/workflows/
+  */node_modules/
+  */venv/
+  */.venv/
+  build/
+  dist/
+  *.min.js
+  *.min.css
