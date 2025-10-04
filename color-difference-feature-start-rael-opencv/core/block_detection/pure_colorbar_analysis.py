@@ -16,6 +16,7 @@ from PIL import Image
 from ..color.ground_truth_checker import ground_truth_checker
 from .blocks_detect import detect_blocks
 from .yolo_show import detect_colorbars_yolo, load_yolo_model
+from .colorbar_analysis import detect_blocks_with_yolo
 
 
 def extract_pure_color_from_block(
@@ -421,13 +422,14 @@ def extract_blocks_from_colorbar(
         return colorbar_segment, [], 0
 
     # Use the existing block detection function
-    result_image, block_images, block_count = detect_blocks(
+    result_image, block_images, block_count = detect_blocks_with_yolo(
         colorbar_segment,
-        output_dir=None,  # Don't save files
+        output_dir=None,
         area_threshold=area_threshold,
         aspect_ratio_threshold=aspect_ratio_threshold,
         min_square_size=min_square_size,
         return_individual_blocks=True,
+        model_path="./core/block_detection/weights/best.pt"  # 添加YOLO模型路径
     )
 
     return result_image, block_images, block_count

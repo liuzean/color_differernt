@@ -21,6 +21,83 @@ from .blocks_detect import detect_blocks
 from .color_analysis import analyze_colorbar_blocks
 from .yolo_show import detect_colorbars_yolo, load_yolo_model
 
+# 添加YOLO色块检测函数
+def detect_blocks_with_yolo(
+    colorbar_segment,
+    output_dir=None,
+    area_threshold=50,
+    aspect_ratio_threshold=0.3,
+    min_square_size=5,
+    return_individual_blocks=True,
+    model_path="./core/block_detection/weights/best.pt"
+):
+    """
+    使用YOLO检测色块，返回格式与原始detect_blocks完全一致
+    """
+    try:
+        from ultralytics import YOLO
+        import cv2
+        
+        # 加载模型
+        model = YOLO(model_path)
+        
+        # YOLO推理
+        results = model.predict(
+            source=colorbar_segment[:, :, ::-1],  # BGR转RGB
+            conf=0.25,
+            verbose=False
+        )
+        
+        result_image = colorbar_segment.copy()
+        block_images = []
+        
+        if results and len(results) > 0:
+            result = results[0]
+            if hasattr(result, 'boxes') and result.boxes is not None:
+                boxes = result.boxes.xyxy.cpu().numpy()
+                
+                for box in boxes:
+                    x1, y1, x2, y2 = box
+                    x = max(0, int(x1))
+                    y = max(0, int(y1))
+                    w = max(1, int(x2 - x1))
+                    h = max(1, int(y2 - y1))
+                    
+                    # 边界检查
+                    h_img, w_img = colorbar_segment.shape[:2]
+                    w = min(w, w_img - x)
+                    h = min(h, h_img - y)
+                    
+                    # 应用过滤条件（与原始参数一致）
+                    if (w * h >= area_threshold and 
+                        w >= min_square_size and 
+                        h >= min_square_size):
+                        
+                        # 画检测框
+                        cv2.rectangle(result_image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                        
+                        # 提取色块图像（关键：与原始格式完全一致）
+                        if return_individual_blocks:
+                            block_image = colorbar_segment[y:y+h, x:x+w]
+                            block_images.append(block_image)
+        
+        block_count = len(block_images)
+        print(f"YOLO检测到 {block_count} 个色块")
+        return result_image, block_images, block_count
+        
+    except Exception as e:
+        print(f"YOLO检测失败，使用传统方法: {e}")
+        return colorbar_segment, [], 0
+        # 回退到原始方法，旧方法，不用的话就删了
+        # return detect_blocks(
+        #     colorbar_segment,
+        #     output_dir=output_dir,
+        #     area_threshold=area_threshold,
+        #     aspect_ratio_threshold=aspect_ratio_threshold,
+        #     min_square_size=min_square_size,
+        #     return_individual_blocks=return_individual_blocks
+        # )
+
 
 def extract_blocks_from_colorbar(
     colorbar_segment: np.ndarray,
@@ -44,7 +121,7 @@ def extract_blocks_from_colorbar(
         return colorbar_segment, [], 0
 
     # Use the existing block detection function with adjusted parameters for colorbar
-    result_image, block_images, block_count = detect_blocks(
+    result_image, block_images, block_count = detect_blocks_with_yolo(
         colorbar_segment,
         output_dir=None,  # Don't save files
         area_threshold=area_threshold,

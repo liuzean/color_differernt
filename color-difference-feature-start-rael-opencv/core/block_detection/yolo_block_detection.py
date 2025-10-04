@@ -30,24 +30,24 @@ def load_block_model(model_path: str):
 
 def detect_blocks_yolo(
     roi_bgr: np.ndarray,
-    model,  # 注意这里是模型对象，不是路径
+    model_path: str,  # 改为接受路径字符串，与原始函数一致
+    output_dir: str = None,  # 添加兼容参数
+    area_threshold: int = 100,
+    aspect_ratio_threshold: float = 0.7,
+    min_square_size: int = 10,
+    return_individual_blocks: bool = True,  # 添加兼容参数
     confidence_threshold: float = 0.25,
-    min_area: int = 100,
     **kwargs
 ):
     """
-    使用YOLO检测色块
-    参数:
-        roi_bgr: 输入的BGR图像
-        model: 已加载的YOLO模型对象
-        confidence_threshold: 置信度阈值
-        min_area: 最小区域面积
-    返回:
-        (segmented_colorbar, color_blocks, block_count)
+    使用YOLO检测色块，返回格式与原始detect_blocks兼容
+    返回: (result_image_with_boxes, list_of_block_images, block_count)
     """
     if roi_bgr is None or roi_bgr.size == 0:
         return roi_bgr, [], 0
     
+    # 加载模型
+    model = load_block_model(model_path)
     h, w = roi_bgr.shape[:2]
     
     # YOLO推理
@@ -57,8 +57,8 @@ def detect_blocks_yolo(
         verbose=False
     )
     
-    blocks = []
-    segmented_colorbar = roi_bgr.copy()
+    result_image = roi_bgr.copy()
+    block_images = []  # 存储实际的色块图像
     
     if results and len(results) > 0:
         result = results[0]
@@ -76,15 +76,15 @@ def detect_blocks_yolo(
                 w_box = min(w_box, w - x)
                 h_box = min(h_box, h - y)
                 
-                # 应用最小面积过滤
-                if w_box * h_box >= min_area:
-                    blocks.append((x, y, w_box, h_box))
+                # 应用面积过滤
+                if w_box * h_box >= area_threshold:
+                    # 在结果图像上画框
+                    cv2.rectangle(result_image, (x, y), (x + w_box, y + h_box), (0, 255, 0), 2)
                     
-                    # 在segmented_colorbar上画出检测框（可选）
-                    cv2.rectangle(segmented_colorbar, (x, y), (x + w_box, y + h_box), (0, 255, 0), 2)
+                    # 提取色块图像（与原始函数格式一致）
+                    if return_individual_blocks:
+                        block_image = roi_bgr[y:y + h_box, x:x + w_box]
+                        block_images.append(block_image)
     
-    # 按x坐标排序
-    blocks.sort(key=lambda b: b[0])
-    block_count = len(blocks)
-    
-    return segmented_colorbar, blocks, block_count
+    block_count = len(block_images)
+    return result_image, block_images, block_count
