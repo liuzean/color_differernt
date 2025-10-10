@@ -110,29 +110,37 @@ def update_shared_results_display(colorbar_data: list[dict]) -> str:
 
                 # --- 1. 准备所有需要展示的数据 ---
                 # --- 检测色 ---
+                 # [Compatibility INFO] New display format. Old format was "C100 M0..." and "L*x a*y...".
+                
+                # --- 检测色 ---
                 rgb = analysis.get("pure_color_rgb") or analysis.get("primary_color_rgb", (0, 0, 0))
                 rgb_hex = f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
                 
-                detected_cmyk = analysis.get("pure_color_cmyk") or analysis.get("primary_color_cmyk", ("N/A", "N/A", "N/A", "N/A"))
-                detected_cmyk_str = f"CMYK: C{detected_cmyk[0]} M{detected_cmyk[1]} Y{detected_cmyk[2]} K{detected_cmyk[3]}"
+                detected_cmyk = analysis.get("pure_color_cmyk") or analysis.get("primary_color_cmyk", (0,0,0,0))
+                detected_lab_raw = analysis.get("detected_lab") or analysis.get("primary_color_lab", (0,0,0))
                 
-                # 从我们之前修改的后端获取 detected_lab
-                detected_lab_raw = analysis.get("detected_lab") 
-                detected_rgb_str = f"RGB: {rgb}"
-                detected_lab_str = f"LAB: L*{detected_lab_raw[0]:.1f} a*{detected_lab_raw[1]:.1f} b*{detected_lab_raw[2]:.1f}" if detected_lab_raw is not None and hasattr(detected_lab_raw, '__len__') and len(detected_lab_raw) >= 3 else "LAB: N/A"
+                detected_rgb_str = f"RGB: ({rgb[0]}, {rgb[1]}, {rgb[2]})"
+                detected_cmyk_str = f"CMYK: ({detected_cmyk[0]}, {detected_cmyk[1]}, {detected_cmyk[2]}, {detected_cmyk[3]})"
+                detected_lab_str = f"LAB: ({detected_lab_raw[0]:.1f}, {detected_lab_raw[1]:.1f}, {detected_lab_raw[2]:.1f})"
 
                 # --- 标准色 ---
                 gt_match = analysis.get("ground_truth_match") or analysis.get("ground_truth_comparison", {})
                 delta_e = gt_match.get("delta_e", float("inf"))
                 
                 closest_color_info = gt_match.get("closest_color", {})
-                gt_cmyk = closest_color_info.get("cmyk", ("N/A", "N/A", "N/A", "N/A"))
-                gt_cmyk_str = f"CMYK: C{gt_cmyk[0]} M{gt_cmyk[1]} Y{gt_cmyk[2]} K{gt_cmyk[3]}"
-                
-                standard_rgb = closest_color_info.get("rgb", ("N/A",))
-                standard_lab_raw = closest_color_info.get("lab") # 直接从对象中获取
-                standard_rgb_str = f"RGB: {standard_rgb}"
-                standard_lab_str = f"LAB: L*{standard_lab_raw[0]:.1f} a*{standard_lab_raw[1]:.1f} b*{standard_lab_raw[2]:.1f}" if standard_lab_raw is not None and hasattr(standard_lab_raw, '__len__') and len(standard_lab_raw) >= 3 else "LAB: N/A"
+                if closest_color_info:
+                    gt_rgb = closest_color_info.get("rgb", (0, 0, 0))
+                    gt_cmyk = closest_color_info.get("cmyk", (0, 0, 0, 0))
+                    gt_lab = closest_color_info.get("lab", (0, 0, 0))
+                    
+                    standard_rgb_str = f"RGB: ({gt_rgb[0]}, {gt_rgb[1]}, {gt_rgb[2]})"
+                    gt_cmyk_str = f"CMYK: ({gt_cmyk[0]}, {gt_cmyk[1]}, {gt_cmyk[2]}, {gt_cmyk[3]})"
+                    standard_lab_str = f"LAB: ({gt_lab[0]:.1f}, {gt_lab[1]:.1f}, {gt_lab[2]:.1f})"
+                else:
+                    standard_rgb_str = "RGB: N/A"
+                    gt_cmyk_str = "CMYK: N/A"
+                    standard_lab_str = "LAB: N/A"
+
                 
                 status_symbol = ""
                 if "is_excellent" in gt_match:
