@@ -9,7 +9,7 @@ import base64
 from io import BytesIO
 
 
-def image_to_base64(pil_image: Image.Image) -> str:
+def image_to_base_64(pil_image: Image.Image) -> str:
     """
     [最终修正] Convert a PIL Image to a Base64 string for embedding in HTML, with robust error handling.
     """
@@ -44,14 +44,12 @@ def update_shared_results_display(colorbar_data: list[dict]) -> str:
         block_count = result.get("block_count", 0)
 
         modal_id = f"modal_{i}"
-        # [新逻辑] 为关闭跳转创建唯一的锚点ID
         close_anchor_id = f"close_anchor_{i}"
 
-        display_image_b64 = image_to_base64(
+        display_image_b64 = image_to_base_64(
             result.get("segmented_colorbar_pil")
-        ) or image_to_base64(result.get("original_segment_pil"))
+        ) or image_to_base_64(result.get("original_segment_pil"))
 
-        # [新逻辑] 在卡片前添加关闭锚点
         html_parts.append(f"<a id='{close_anchor_id}'></a>")
 
         # --- Card Header ---
@@ -76,7 +74,6 @@ def update_shared_results_display(colorbar_data: list[dict]) -> str:
         # Top Part: Image with Fullscreen button
         html_parts.append("<div class='image-panel-top'>")
         if display_image_b64:
-            # Fullscreen Modal Structure
             html_parts.append(
                 f"""
             <div class='modal' id='{modal_id}'>
@@ -88,7 +85,6 @@ def update_shared_results_display(colorbar_data: list[dict]) -> str:
             </div>
             """
             )
-            # Image container with zoom button
             html_parts.append(
                 f"<div class='image-wrapper'><img src='{display_image_b64}' alt='Colorbar Segment' /><a href='#{modal_id}' class='zoom-btn'>🔍</a></div>"
             )
@@ -112,20 +108,32 @@ def update_shared_results_display(colorbar_data: list[dict]) -> str:
                 if "error" in analysis:
                     continue
 
-                rgb = analysis.get("pure_color_rgb") or analysis.get(
-                    "primary_color_rgb", (0, 0, 0)
-                )
+                # --- 1. 准备所有需要展示的数据 ---
+                # --- 检测色 ---
+                rgb = analysis.get("pure_color_rgb") or analysis.get("primary_color_rgb", (0, 0, 0))
                 rgb_hex = f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
-                detected_cmyk = analysis.get("pure_color_cmyk") or analysis.get(
-                    "primary_color_cmyk", ("N/A", "N/A", "N/A", "N/A")
-                )
-                detected_cmyk_str = f"C{detected_cmyk[0]} M{detected_cmyk[1]} Y{detected_cmyk[2]} K{detected_cmyk[3]}"
+                
+                detected_cmyk = analysis.get("pure_color_cmyk") or analysis.get("primary_color_cmyk", ("N/A", "N/A", "N/A", "N/A"))
+                detected_cmyk_str = f"CMYK: C{detected_cmyk[0]} M{detected_cmyk[1]} Y{detected_cmyk[2]} K{detected_cmyk[3]}"
+                
+                # 从我们之前修改的后端获取 detected_lab
+                detected_lab_raw = analysis.get("detected_lab") 
+                detected_rgb_str = f"RGB: {rgb}"
+                detected_lab_str = f"LAB: L*{detected_lab_raw[0]:.1f} a*{detected_lab_raw[1]:.1f} b*{detected_lab_raw[2]:.1f}" if detected_lab_raw is not None and hasattr(detected_lab_raw, '__len__') and len(detected_lab_raw) >= 3 else "LAB: N/A"
 
-                gt_match = analysis.get("ground_truth_match") or analysis.get(
-                    "ground_truth_comparison", {}
-                )
+                # --- 标准色 ---
+                gt_match = analysis.get("ground_truth_match") or analysis.get("ground_truth_comparison", {})
                 delta_e = gt_match.get("delta_e", float("inf"))
-
+                
+                closest_color_info = gt_match.get("closest_color", {})
+                gt_cmyk = closest_color_info.get("cmyk", ("N/A", "N/A", "N/A", "N/A"))
+                gt_cmyk_str = f"CMYK: C{gt_cmyk[0]} M{gt_cmyk[1]} Y{gt_cmyk[2]} K{gt_cmyk[3]}"
+                
+                standard_rgb = closest_color_info.get("rgb", ("N/A",))
+                standard_lab_raw = closest_color_info.get("lab") # 直接从对象中获取
+                standard_rgb_str = f"RGB: {standard_rgb}"
+                standard_lab_str = f"LAB: L*{standard_lab_raw[0]:.1f} a*{standard_lab_raw[1]:.1f} b*{standard_lab_raw[2]:.1f}" if standard_lab_raw is not None and hasattr(standard_lab_raw, '__len__') and len(standard_lab_raw) >= 3 else "LAB: N/A"
+                
                 status_symbol = ""
                 if "is_excellent" in gt_match:
                     if gt_match["is_excellent"]:
@@ -135,17 +143,24 @@ def update_shared_results_display(colorbar_data: list[dict]) -> str:
                     else:
                         status_symbol = "❌"
 
-                closest_color_info = gt_match.get("closest_color", {})
-                gt_cmyk = closest_color_info.get("cmyk", ("N/A", "N/A", "N/A", "N/A"))
-                gt_cmyk_str = f"C{gt_cmyk[0]} M{gt_cmyk[1]} Y{gt_cmyk[2]} K{gt_cmyk[3]}"
-
+                # --- 2. 生成新的、更详细的HTML卡片 ---
                 html_parts.append(
                     f"""
                 <div class='block-card-new'>
                     <div class='block-color-swatch-new' style='background-color: {rgb_hex};'></div>
                     <div class='block-details-new'>
-                         <div class='block-detected-cmyk-new'>Detected: {detected_cmyk_str}</div>
-                         <div class='block-gt-cmyk-new'>Standard: {gt_cmyk_str}</div>
+                         <div class='block-color-group'>
+                            <div class='block-title'>Detected</div>
+                            <div class='block-value'>{detected_rgb_str}</div>
+                            <div class='block-value'>{detected_cmyk_str}</div>
+                            <div class='block-value'>{detected_lab_str}</div>
+                         </div>
+                         <div class='block-color-group'>
+                            <div class='block-title'>Standard</div>
+                            <div class='block-value'>{standard_rgb_str}</div>
+                            <div class='block-value'>{gt_cmyk_str}</div>
+                            <div class='block-value'>{standard_lab_str}</div>
+                         </div>
                          <div class='block-delta-e-new'>ΔE: {delta_e:.2f} {status_symbol}</div>
                     </div>
                 </div>
@@ -185,7 +200,7 @@ def update_shared_results_display(colorbar_data: list[dict]) -> str:
         .zoom-btn:hover { background: rgba(0,0,0,0.8); }
 
         .blocks-panel-bottom {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 10px; align-content: start;
         }
         
@@ -194,10 +209,19 @@ def update_shared_results_display(colorbar_data: list[dict]) -> str:
             display: flex; align-items: center; gap: 10px;
         }
         .block-color-swatch-new { width: 50px; height: 50px; border-radius: 4px; border: 1px solid #888; flex-shrink: 0; }
+        
         .block-details-new { text-align: left; flex-grow: 1; }
-        .block-detected-cmyk-new { font-size: 0.8em; color: #333; line-height: 1.2; }
-        .block-gt-cmyk-new { font-size: 0.8em; color: #777; line-height: 1.2; }
+
+        /* --- 从这里开始是新增/修改的规则 --- */
+        .block-color-group { margin-bottom: 5px; }
+        .block-title { font-size: 0.75em; color: #888; font-weight: bold; }
+        .block-value { font-size: 0.8em; color: #333; line-height: 1.3; }
+        
         .block-delta-e-new { font-size: 0.9em; font-weight: bold; color: #333; margin-top: 4px; }
+        
+        /* 隐藏旧的、不再需要的CMYK单行显示规则 */
+        .block-detected-cmyk-new, .block-gt-cmyk-new { display: none; } 
+        /* --- 修改结束 --- */
 
         /* [修正] Fullscreen Modal Styles */
         .modal {

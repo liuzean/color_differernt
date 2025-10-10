@@ -207,18 +207,25 @@ def analyze_colorbar_with_best_card_match(
         if i < len(match_results):
             match = match_results[i]
             gt_color = match["closest_ground_truth"]
+            # 这是替换后的新代码块
+            detected_lab_value = match.get("detected_lab")
             features["ground_truth_match"] = {
-                "closest_color": {
-                    "id": gt_color.id,
-                    "name": gt_color.name,
-                    "cmyk": gt_color.cmyk,
-                    "rgb": gt_color.rgb,
-                },
-                "delta_e": match["delta_e"],
-                "accuracy_level": match["accuracy_level"],
-                "is_acceptable": match["delta_e"] < 3.0,
-                "is_excellent": match["delta_e"] < 1.0,
-            }
+            "closest_color": {
+                "id": gt_color.id,
+                "name": gt_color.name,
+                "cmyk": gt_color.cmyk,
+                "rgb": gt_color.rgb,
+                "lab": gt_color.lab,  # 同时也将标准色的LAB值传递过去
+            },
+            "delta_e": match["delta_e"],
+            "accuracy_level": match["accuracy_level"],
+            "is_acceptable": match["delta_e"] < 3.0,
+            "is_excellent": match["delta_e"] < 1.0,
+        }
+        # --- 新增：将 detected_lab 作为顶层字段添加到 features 字典中 ---
+        # 这样做是为了匹配前端 shared_results.py 的 `analysis.get("detected_lab")` 写法
+        if detected_lab_value is not None:
+            features["detected_lab"] = detected_lab_value
         final_analyses.append(features)
     return final_analyses, best_card_id
 

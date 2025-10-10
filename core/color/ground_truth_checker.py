@@ -13,6 +13,8 @@ import numpy as np
 # 从项目内部的utils导入正确的函数
 from .utils import calculate_color_difference, cmyk_to_rgb, rgb_to_lab
 
+from core.block_detection.color_analysis import rgb_to_cmyk_icc
+
 # 11组标准色卡数据
 standard_cards_data = {
     "card_001": {
@@ -323,9 +325,19 @@ class GroundTruthChecker:
                 img1 = np.array([[detected_colors_rgb[i]]], dtype=np.uint8)
                 img2 = np.array([[gt_color.rgb]], dtype=np.uint8)
                 delta_e, _ = calculate_color_difference(img1, img2)
+                # 新代码
+                # --- 新增：计算检测色的CMYK和LAB值 ---
+                detected_rgb = detected_colors_rgb[i]
+                detected_cmyk = rgb_to_cmyk_icc(detected_rgb)
+                detected_lab_arr = rgb_to_lab(np.array([[detected_rgb]], dtype=np.uint8))
+                # 将 NumPy 数组转换为普通的 Python 元组
+                detected_lab = tuple(np.round(detected_lab_arr[0, 0], 2))
+
                 results.append(
                     {
-                        "detected_rgb": detected_colors_rgb[i],
+                        "detected_rgb": detected_rgb,
+                        "detected_cmyk": detected_cmyk,  # 新增字段
+                        "detected_lab": detected_lab,    # 新增字段
                         "closest_ground_truth": gt_color,
                         "delta_e": delta_e,
                         "accuracy_level": self._get_accuracy_level(delta_e),
@@ -346,9 +358,17 @@ class GroundTruthChecker:
                         min_delta_e = delta_e
                         best_gt_color = gt_color
 
+                # 新代码
+                # --- 新增：计算检测色的CMYK和LAB值 ---
+                detected_cmyk = rgb_to_cmyk_icc(detected_rgb)
+                detected_lab_arr = rgb_to_lab(np.array([[detected_rgb]], dtype=np.uint8))
+                detected_lab = tuple(np.round(detected_lab_arr[0, 0], 2))
+
                 results.append(
                     {
                         "detected_rgb": detected_rgb,
+                        "detected_cmyk": detected_cmyk,  # 新增字段
+                        "detected_lab": detected_lab,    # 新增字段
                         "closest_ground_truth": best_gt_color,
                         "delta_e": min_delta_e,
                         "accuracy_level": self._get_accuracy_level(min_delta_e),
