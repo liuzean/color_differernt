@@ -22,6 +22,8 @@ from .yolo_show import detect_colorbars_yolo, load_yolo_model
 # 导入新的YOLO色块检测器
 from .yolo_block_detection import detect_blocks_with_yolo, load_yolo_block_model
 
+# 恢复结果保存功能
+from core.utils.result_saver import save_analysis_to_files
 
 def extract_pure_color_from_block(
     color_block: np.ndarray,
@@ -426,6 +428,13 @@ def pure_colorbar_analysis_for_gradio(
         return (pil_image if pil_image else None), [], f"❌ {result['error']}", 0
     if not result.get("success", False):
         return pil_image, [], "❌ Pure color analysis failed", 0
+
+    # --- 新增：在这里调用保存函数 ---
+    # 将完整的、包含所有分析结果的 result 字典传递给保存函数
+    try:
+        save_analysis_to_files(result)
+    except Exception as e:
+        print(f"错误：保存结果文件时发生异常: {e}")
 
     annotated_pil = Image.fromarray(
         cv2.cvtColor(result["annotated_image"], cv2.COLOR_BGR2RGB)
