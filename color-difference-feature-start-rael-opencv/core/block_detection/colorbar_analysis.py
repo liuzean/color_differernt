@@ -55,8 +55,25 @@ def detect_blocks_with_yolo(
             result = results[0]
             if hasattr(result, 'boxes') and result.boxes is not None:
                 boxes = result.boxes.xyxy.cpu().numpy()
+
+                # --- 新增代码：开始 ---
+                # 判断方向并排序
+                h_seg, w_seg = colorbar_segment.shape[:2]
+                is_vertical = h_seg > w_seg
+
+                # 将 boxes 转换为列表以便排序
+                box_list = list(boxes)
+
+                if is_vertical:
+                    # 如果是纵向, 按 Y 坐标排序 (从上到下)
+                    box_list.sort(key=lambda b: b[1])
+                else:
+                    # 如果是横向, 按 X 坐标排序 (从左到右)
+                    box_list.sort(key=lambda b: b[0])
+                # --- 新增代码：结束 ---
                 
-                for box in boxes:
+                # 修改：遍历排序后的 box_list
+                for box in box_list:
                     x1, y1, x2, y2 = box
                     x = max(0, int(x1))
                     y = max(0, int(y1))
@@ -88,15 +105,6 @@ def detect_blocks_with_yolo(
     except Exception as e:
         print(f"YOLO检测失败，使用传统方法: {e}")
         return colorbar_segment, [], 0
-        # 回退到原始方法，旧方法，不用的话就删了
-        # return detect_blocks(
-        #     colorbar_segment,
-        #     output_dir=output_dir,
-        #     area_threshold=area_threshold,
-        #     aspect_ratio_threshold=aspect_ratio_threshold,
-        #     min_square_size=min_square_size,
-        #     return_individual_blocks=return_individual_blocks
-        # )
 
 
 def extract_blocks_from_colorbar(
