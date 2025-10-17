@@ -17,6 +17,7 @@ from PIL import Image
 def create_concise_colorbar_display(colorbar_data: List[Dict]) -> str:
     """
     Create concise HTML display for colorbar analysis results.
+    显示检测色和标准色的 RGB/CMYK/LAB 三种色彩空间值以及 ΔE
 
     Args:
         colorbar_data: List of colorbar analysis results
@@ -37,18 +38,25 @@ def create_concise_colorbar_display(colorbar_data: List[Dict]) -> str:
     .colorbar-image { flex: 1; text-align: center; }
     .colorbar-image img { max-width: 100%; height: 60px; border: 1px solid #ccc; border-radius: 3px; }
     .colorbar-image-label { font-size: 10px; color: #666; margin-top: 2px; }
-    .color-blocks-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
-    .color-block { display: flex; align-items: center; gap: 8px; padding: 6px; background: white; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; }
+    .color-blocks-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 8px; }
+    .color-block { display: grid; grid-template-columns: 44px 1fr; gap: 8px; padding: 8px; background: white; border: 1px solid #ddd; border-radius: 4px; font-size: 11px; }
     .color-block.excellent { border-left: 4px solid #4CAF50; }
     .color-block.acceptable { border-left: 4px solid #FF9800; }
     .color-block.poor { border-left: 4px solid #f44336; }
-    .color-preview { width: 30px; height: 30px; border-radius: 4px; border: 1px solid #333; flex-shrink: 0; }
-    .color-info { flex: 1; }
-    .color-block-id { font-weight: bold; color: #333; }
-    .cmyk-values { color: #666; font-size: 10px; }
-    .delta-e-info { display: flex; align-items: center; gap: 4px; }
-    .delta-e-value { font-weight: bold; }
-    .result-indicator { font-size: 12px; }
+    .color-preview { width: 36px; height: 36px; border-radius: 4px; border: 1px solid #333; grid-row: span 2; }
+    .color-info { display: grid; gap: 4px; }
+    .color-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .group { background: #f8f8f8; border: 1px dashed #ddd; border-radius: 4px; padding: 6px; }
+    .group-title { font-weight: bold; color: #333; margin-bottom: 4px; }
+    .kv { color: #444; line-height: 1.4; }
+    .kv .label { color: #666; margin-right: 4px; }
+    .header-line { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .block-id { font-weight: bold; color: #333; }
+    .delta-e { font-weight: bold; }
+    .badge { font-size: 10px; padding: 2px 6px; border-radius: 10px; }
+    .badge.excellent { background: #E8F5E9; color: #2E7D32; border: 1px solid #A5D6A7; }
+    .badge.acceptable { background: #FFF3E0; color: #EF6C00; border: 1px solid #FFCC80; }
+    .badge.poor { background: #FFEBEE; color: #C62828; border: 1px solid #EF9A9A; }
     .summary-stats { background: #e8f4f8; border: 1px solid #2196F3; border-radius: 4px; padding: 8px; margin-bottom: 10px; font-size: 11px; }
     .summary-stats-title { font-weight: bold; color: #1976D2; margin-bottom: 4px; }
     </style>
@@ -140,38 +148,85 @@ def create_concise_colorbar_display(colorbar_data: List[Dict]) -> str:
                 block_id = analysis.get("block_id", "?")
                 pure_rgb = analysis.get("pure_color_rgb", (0, 0, 0))
                 pure_cmyk = analysis.get("pure_color_cmyk", (0, 0, 0, 0))
+                detected_lab = analysis.get("detected_lab", (0.0, 0.0, 0.0))
                 gt_match = analysis.get("ground_truth_match", {})
+
+                # 获取标准色数据，兼容处理
+                closest_color = gt_match.get("closest_color") or {}
+                if not closest_color:
+                    fallback = analysis.get("closest_ground_truth") or analysis.get("expected_ground_truth")
+                    if isinstance(fallback, dict) and fallback:
+                        closest_color = {
+                            "name": fallback.get("name"),
+                            "rgb": fallback.get("rgb", (0, 0, 0)),
+                            "cmyk": fallback.get("cmyk", (0, 0, 0, 0)),
+                            "lab": fallback.get("lab", (0.0, 0.0, 0.0)),
+                        }
+                    elif fallback:
+                        closest_color = {
+                            "name": getattr(fallback, "name", None),
+                            "rgb": getattr(fallback, "rgb", (0, 0, 0)),
+                            "cmyk": getattr(fallback, "cmyk", (0, 0, 0, 0)),
+                            "lab": getattr(fallback, "lab", (0.0, 0.0, 0.0)),
+                        }
+
+                gt_name = closest_color.get("name", "Standard")
+                gt_rgb = closest_color.get("rgb", (0, 0, 0))
+                gt_cmyk = closest_color.get("cmyk", (0, 0, 0, 0))
+                gt_lab = closest_color.get("lab", (0.0, 0.0, 0.0))
 
                 # Determine block styling
                 block_class = "color-block"
-                result_icon = "❌"
+                badge_class = "poor"
                 if gt_match.get("is_excellent"):
                     block_class += " excellent"
-                    result_icon = "✅"
+                    badge_class = "excellent"
                 elif gt_match.get("is_acceptable"):
                     block_class += " acceptable"
-                    result_icon = "⚠️"
+                    badge_class = "acceptable"
                 else:
                     block_class += " poor"
-                    result_icon = "❌"
+                    badge_class = "poor"
 
                 # Color preview
                 color_style = f"background-color: rgb({pure_rgb[0]}, {pure_rgb[1]}, {pure_rgb[2]});"
 
-                # Delta E info
-                delta_e = gt_match.get("delta_e", 0)
-                delta_e_display = f"ΔE: {delta_e:.2f}" if delta_e > 0 else "ΔE: N/A"
+                # ΔE info
+                delta_e = gt_match.get("delta_e", 0.0)
+                accuracy_level = gt_match.get("accuracy_level", "")
+                delta_e_display = f"ΔE: {delta_e:.2f}"
+
+                # 格式化显示字符串
+                detected_rgb_str = f"({pure_rgb[0]}, {pure_rgb[1]}, {pure_rgb[2]})"
+                detected_cmyk_str = f"({pure_cmyk[0]}, {pure_cmyk[1]}, {pure_cmyk[2]}, {pure_cmyk[3]})"
+                detected_lab_str = f"({detected_lab[0]:.2f}, {detected_lab[1]:.2f}, {detected_lab[2]:.2f})"
+
+                gt_rgb_str = f"({gt_rgb[0]}, {gt_rgb[1]}, {gt_rgb[2]})"
+                gt_cmyk_str = f"({gt_cmyk[0]}, {gt_cmyk[1]}, {gt_cmyk[2]}, {gt_cmyk[3]})"
+                gt_lab_str = f"({gt_lab[0]:.2f}, {gt_lab[1]:.2f}, {gt_lab[2]:.2f})"
 
                 html += f"""
                 <div class="{block_class}">
                     <div class="color-preview" style="{color_style}"></div>
                     <div class="color-info">
-                        <div class="color-block-id">{colorbar_id}.{block_id}</div>
-                        <div class="cmyk-values">C:{pure_cmyk[0]} M:{pure_cmyk[1]} Y:{pure_cmyk[2]} K:{pure_cmyk[3]}</div>
-                    </div>
-                    <div class="delta-e-info">
-                        <div class="delta-e-value">{delta_e_display}</div>
-                        <div class="result-indicator">{result_icon}</div>
+                        <div class="header-line">
+                            <div class="block-id">{colorbar_id}.{block_id}</div>
+                            <div class="delta-e"><span class="badge {badge_class}">{delta_e_display} {accuracy_level}</span></div>
+                        </div>
+                        <div class="color-row">
+                            <div class="group">
+                                <div class="group-title">检测色</div>
+                                <div class="kv"><span class="label">RGB</span><span>{detected_rgb_str}</span></div>
+                                <div class="kv"><span class="label">CMYK</span><span>{detected_cmyk_str}</span></div>
+                                <div class="kv"><span class="label">LAB</span><span>{detected_lab_str}</span></div>
+                            </div>
+                            <div class="group">
+                                <div class="group-title">标准色 - {gt_name}</div>
+                                <div class="kv"><span class="label">RGB</span><span>{gt_rgb_str}</span></div>
+                                <div class="kv"><span class="label">CMYK</span><span>{gt_cmyk_str}</span></div>
+                                <div class="kv"><span class="label">LAB</span><span>{gt_lab_str}</span></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 """

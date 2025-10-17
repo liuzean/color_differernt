@@ -99,7 +99,7 @@ class GroundTruthColorChecker:
             rgb_color: RGB color tuple (0-255)
 
         Returns:
-            Tuple of (closest_ground_truth_color, delta_e_value)
+            Tuple of (closest_ground_truth_color, delta E value)
         """
         min_delta_e = float("inf")
         closest_color = None
@@ -144,9 +144,30 @@ class GroundTruthColorChecker:
         for i, rgb_color in enumerate(detected_colors):
             closest_gt, delta_e = self.find_closest_color(rgb_color)
 
+            # 新增：检测色的 LAB 值（用于前端展示）
+            try:
+                detected_lab_arr = rgb_to_lab(np.array([[rgb_color]], dtype=np.uint8))
+                detected_lab = tuple(float(np.round(v, 2)) for v in detected_lab_arr[0, 0])
+            except Exception:
+                detected_lab = (0.0, 0.0, 0.0)
+
+            # 组装 ground_truth_match.closest_color 供前端读取三色彩空间值
+            closest_color_dict = (
+                {
+                    "id": closest_gt.id,
+                    "name": closest_gt.name,
+                    "cmyk": closest_gt.cmyk,
+                    "rgb": closest_gt.rgb,
+                    "lab": closest_gt.lab,
+                }
+                if closest_gt
+                else None
+            )
+
             result = {
                 "detected_color_id": i,
                 "detected_rgb": rgb_color,
+                "detected_lab": detected_lab,  # 新增字段：检测色 LAB
                 "closest_ground_truth": {
                     "id": closest_gt.id,
                     "name": closest_gt.name,
@@ -156,6 +177,11 @@ class GroundTruthColorChecker:
                 }
                 if closest_gt
                 else None,
+                # 新增：前端兼容结构，包含标准色的 RGB/CMYK/Lab 与该块 ΔE
+                "ground_truth_match": {
+                    "closest_color": closest_color_dict,
+                    "delta_e": float(delta_e),
+                },
                 "delta_e": delta_e,
                 "accuracy_level": self._get_accuracy_level(delta_e),
             }
@@ -189,15 +215,30 @@ class GroundTruthColorChecker:
                 # Calculate delta E using proper ICC-based comparison
                 delta_e = self._calculate_single_color_delta_e(rgb_color, gt_color)
 
+                # 新增：检测色的 LAB 值（用于前端展示）
+                try:
+                    detected_lab_arr = rgb_to_lab(np.array([[rgb_color]], dtype=np.uint8))
+                    detected_lab = tuple(float(np.round(v, 2)) for v in detected_lab_arr[0, 0])
+                except Exception:
+                    detected_lab = (0.0, 0.0, 0.0)
+
+                expected_gt_dict = {
+                    "id": gt_color.id,
+                    "name": gt_color.name,
+                    "cmyk": gt_color.cmyk,
+                    "rgb": gt_color.rgb,
+                    "lab": gt_color.lab,
+                }
+
                 result = {
                     "detected_color_id": i,
                     "detected_rgb": rgb_color,
-                    "expected_ground_truth": {
-                        "id": gt_color.id,
-                        "name": gt_color.name,
-                        "cmyk": gt_color.cmyk,
-                        "rgb": gt_color.rgb,
-                        "lab": gt_color.lab,
+                    "detected_lab": detected_lab,  # 新增字段：检测色 LAB
+                    "expected_ground_truth": expected_gt_dict,
+                    # 新增：与非固定顺序保持一致的前端结构
+                    "ground_truth_match": {
+                        "closest_color": expected_gt_dict,
+                        "delta_e": float(delta_e),
                     },
                     "delta_e": delta_e,
                     "accuracy_level": self._get_accuracy_level(delta_e),
@@ -208,6 +249,11 @@ class GroundTruthColorChecker:
                     "detected_color_id": i,
                     "detected_rgb": rgb_color,
                     "expected_ground_truth": None,
+                    "ground_truth_match": {
+                        "closest_color": None,
+                        "delta_e": float("inf"),
+                    },
+                    "detected_lab": (0.0, 0.0, 0.0),
                     "delta_e": float("inf"),
                     "accuracy_level": "No Reference",
                 }

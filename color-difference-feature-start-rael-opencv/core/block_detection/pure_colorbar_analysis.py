@@ -14,6 +14,7 @@ import numpy as np
 from PIL import Image
 
 from ..color.ground_truth_checker import ground_truth_checker
+from ..color.utils import rgb_to_lab  # 新增：用于计算检测色与标准色的 Lab
 from .blocks_detect import detect_blocks
 from .yolo_show import detect_colorbars_yolo, load_yolo_model
 from .colorbar_analysis import detect_blocks_with_yolo
@@ -128,27 +129,52 @@ def analyze_pure_color_block(
     # Find closest ground truth color and calculate delta E
     closest_gt_color, delta_e = ground_truth_checker.find_closest_color(pure_rgb)
 
+    # 计算检测色的 Lab（供前端展示）
+    try:
+        detected_lab_arr = rgb_to_lab(np.array([[pure_rgb]], dtype=np.uint8))
+        detected_lab = tuple(float(np.round(v, 2)) for v in detected_lab_arr[0, 0])
+    except Exception:
+        detected_lab = (0.0, 0.0, 0.0)
+
+    # 组织标准色字典，包含 Lab（若对象未带 Lab，则回退用 RGB 现算）
+    closest_color_dict = None
+    if closest_gt_color:
+        gt_lab_tuple = None
+        try:
+            if getattr(closest_gt_color, "lab", None) is not None:
+                lab_vals = closest_gt_color.lab
+                gt_lab_tuple = tuple(float(np.round(v, 2)) for v in lab_vals)
+            else:
+                # fallback: 用标准色 RGB 计算 Lab
+                gt_rgb_arr = np.array([[closest_gt_color.rgb]], dtype=np.uint8)
+                gt_lab_arr = rgb_to_lab(gt_rgb_arr)
+                gt_lab_tuple = tuple(float(np.round(v, 2)) for v in gt_lab_arr[0, 0])
+        except Exception:
+            gt_lab_tuple = (0.0, 0.0, 0.0)
+
+        closest_color_dict = {
+            "id": getattr(closest_gt_color, "id", None),
+            "name": getattr(closest_gt_color, "name", None),
+            "cmyk": getattr(closest_gt_color, "cmyk", (0, 0, 0, 0)),
+            "rgb": getattr(closest_gt_color, "rgb", (0, 0, 0)),
+            "lab": gt_lab_tuple,
+        }
+
     # Create analysis result
     analysis = {
         "block_id": block_id,
         "colorbar_id": colorbar_id,
         "pure_color_rgb": pure_rgb,
         "pure_color_cmyk": pure_cmyk,
+        "detected_lab": detected_lab,  # 新增：检测色 Lab
         "purity_score": purity_score,
         "color_quality": _get_color_quality(purity_score),
         "ground_truth_match": {
-            "closest_color": {
-                "id": closest_gt_color.id,
-                "name": closest_gt_color.name,
-                "cmyk": closest_gt_color.cmyk,
-                "rgb": closest_gt_color.rgb,
-            }
-            if closest_gt_color
-            else None,
-            "delta_e": delta_e,
+            "closest_color": closest_color_dict,
+            "delta_e": float(delta_e),
             "accuracy_level": ground_truth_checker._get_accuracy_level(delta_e),
-            "is_acceptable": delta_e < 3.0,
-            "is_excellent": delta_e < 1.0,
+            "is_acceptable": float(delta_e) < 3.0,
+            "is_excellent": float(delta_e) < 1.0,
         },
         "block_size": color_block.shape[:2],
     }
@@ -429,7 +455,7 @@ def extract_blocks_from_colorbar(
         aspect_ratio_threshold=aspect_ratio_threshold,
         min_square_size=min_square_size,
         return_individual_blocks=True,
-        model_path="./core/block_detection/weights/best.pt"  # 添加YOLO模型路径
+        model_path="./core/block_detection/weights/best.pt",  # 添加YOLO模型路径
     )
 
     return result_image, block_images, block_count
