@@ -165,8 +165,7 @@ def cmyk_to_rgb(cmyk_image: np.ndarray, **kwargs) -> np.ndarray:
         # Use ICC-based conversion
         rgb_array, _ = cmyk_to_srgb_array(cmyk_uint8, **kwargs)
 
-        # Convert BGR to RGB
-        rgb_image = rgb_array[..., ::-1]
+        rgb_image = rgb_array
 
         # Ensure uint8 format
         if rgb_image.dtype != np.uint8:
