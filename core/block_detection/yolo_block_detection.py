@@ -54,6 +54,7 @@ def detect_blocks_with_yolo(
     model: YOLO,
     confidence_threshold: float = 0.5,
     min_area: int = 50,
+    return_coordinates: bool = False,  # <-- 新增参数
 ) -> tuple[np.ndarray, list[np.ndarray], int]:
     """
     Detect color blocks in a given image segment using YOLOv8, sort them,
@@ -138,3 +139,12 @@ def detect_blocks_with_yolo(
             block_count += 1
 
     return annotated_segment, color_blocks, block_count
+#现在上面还是原来的代码，下面是对上面一行代码进行的修改，本来是为了适配colorbar analysis_2的需求，但由于有问题，所以暂时恢复原来的状态，下面的代码是注释掉的修改版本
+"""    
+if return_coordinates:
+    # 新流程 (Colorbar Analysis_2) 需要 4 个值
+        return annotated_segment, color_blocks, block_count, boxes
+    else:
+        # 旧流程 (Colorbar Analysis) 只需要 3 个值
+        return annotated_segment, color_blocks, block_count
+"""

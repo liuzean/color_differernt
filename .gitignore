@@ -29,6 +29,7 @@ var/
 *.egg
 MANIFEST
 /Result Output/
+test_output/tif convert jpg,png_results/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

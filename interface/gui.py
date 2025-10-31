@@ -18,6 +18,7 @@ from .components.results import create_results_ui
 from .components.settings import create_settings_ui
 from .config import load_config
 from .handlers.callbacks import process_images_handler, save_config_handler
+from .components.colorbar_analysis_tiff import create_colorbar_analysis_tiff_ui
 
 plt.use("Agg")
 plt.rcParams["font.family"] = "DejaVu Sans"
@@ -25,16 +26,97 @@ plt.rcParams["axes.unicode_minus"] = False
 
 config = load_config()
 
+js_code = """
+async () => {
+  // Function to add listener safely
+  const addFileListener = () => {
+      // Get file input element
+      const imageInputContainer = document.getElementById('tiff_input_image');
+      let fileInput = imageInputContainer ? imageInputContainer.querySelector('input[type="file"]') : null;
+
+      // Get hidden textbox element
+      const hiddenTextboxContainer = document.getElementById('hidden_orig_filename');
+      let hiddenTextarea = hiddenTextboxContainer ? hiddenTextboxContainer.querySelector('textarea') : null;
+
+      if (fileInput && hiddenTextarea) {
+          console.log("JS: Found elements, adding event listener.");
+
+          // Prevent adding multiple listeners if UI re-renders partially
+          if (fileInput.dataset.listenerAttached === 'true') {
+              console.log("JS: Listener already attached.");
+              return;
+          }
+          fileInput.dataset.listenerAttached = 'true'; // Mark as attached
+
+          fileInput.addEventListener('change', (event) => {
+              const files = event.target.files;
+              let filename = ''; // Default to empty
+              if (files && files.length > 0) {
+                  filename = files[0].name;
+                  console.log('JS: File selected:', filename);
+              } else {
+                  console.log('JS: File input cleared or no file selected.');
+              }
+
+              // Update hidden textarea only if the value changes
+              if (hiddenTextarea.value !== filename) {
+                  console.log('JS: Updating hidden filename to:', filename);
+                  hiddenTextarea.value = filename;
+                  // Manually trigger input event for Gradio backend
+                  const inputEvent = new Event('input', { bubbles: true });
+                  hiddenTextarea.dispatchEvent(inputEvent);
+                  console.log('JS: Dispatched input event for hidden textarea.');
+              }
+          });
+          console.log("JS: Event listener added successfully.");
+      } else {
+          if (!fileInput) console.error("JS Error: File input for 'tiff_input_image' not found during listener setup.");
+          if (!hiddenTextarea) console.error("JS Error: Hidden textarea for 'hidden_orig_filename' not found during listener setup.");
+          // Retry after a short delay if elements aren't ready immediately
+          console.log("JS: Elements not found, retrying listener setup...");
+          setTimeout(addFileListener, 500); // Retry after 500ms
+      }
+  };
+
+  // Initial attempt to add the listener
+  addFileListener();
+
+  // Fallback: Use MutationObserver to re-apply if Gradio re-renders components
+  const observer = new MutationObserver((mutationsList, observer) => {
+      for(const mutation of mutationsList) {
+          if (mutation.type === 'childList' || mutation.type === 'attributes') {
+              // Check if the target elements might have been re-rendered
+              const imageInputContainer = document.getElementById('tiff_input_image');
+              const fileInput = imageInputContainer ? imageInputContainer.querySelector('input[type="file"]') : null;
+               if (fileInput && fileInput.dataset.listenerAttached !== 'true') {
+                   console.log("JS Observer: Detected potential re-render, re-attaching listener.");
+                   addFileListener(); // Re-run setup if listener seems missing
+                   // Consider disconnecting observer if setup is stable: observer.disconnect();
+                   break; // Assume setup is done once listener is re-attached
+               }
+          }
+      }
+  });
+
+  // Observe the body for changes, might need refinement based on Gradio's structure
+  observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+  console.log("JS: MutationObserver started.");
+
+}
+"""
 
 def create_interface():
     """Create the main Gradio interface."""
-    with gr.Blocks(title="Color Difference Analysis Tool") as demo:
+    with gr.Blocks(title="Color Difference Analysis Tool",js=js_code) as demo:
         gr.Markdown("# Color Difference Analysis Tool")
 
         with gr.Tabs():
             # Intelligent Colorbar Analysis Tab
             with gr.TabItem("🎯 Colorbar Analysis"):
                 create_colorbar_analysis_ui()
+          
+            with gr.TabItem("🎨 Colorbar Analysis_2 (TIFF)"):
+                create_colorbar_analysis_tiff_ui()
 
             # Ground-Truth Colorbar Demo Tab
             with gr.TabItem("🎨 Ground-Truth Demo"):
