@@ -191,3 +191,17 @@ color-diff-images/
 # VS Code
 .vscode/
 .specstory/.what-is-this.md
+
+# 忽略 generate_color_cards_output 文件夹中的所有内容...
+/test_output/generate_color_cards_output/*
+
+# 忽略 generate_color_cards_output 文件夹中的所有内容...
+/test_output/tif convert jpg,png_results/*
+
+# ...但是 .gitkeep 文件除外，以保留该文件夹结构
+!/test_output/generate_color_cards_output/.gitkeep
+
+
+# 忽略 color-difference-feature-start-rael-opencv 文件夹
+/color-difference-feature-start-rael-opencv/
+
